@@ -1,0 +1,6 @@
+/storage/database.sqlite
+!/storage/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+.DS_Store
+Thumbs.db
