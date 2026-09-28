@@ -309,7 +309,7 @@ function get_post_comments(int $postId): array
          FROM post_comments c
          INNER JOIN users u ON u.id = c.user_id
          WHERE c.post_id = :post_id
-         ORDER BY c.created_at DESC'
+         ORDER BY c.created_at ASC, c.id ASC'
     );
     $stmt->execute(['post_id' => $postId]);
     return $stmt->fetchAll();
@@ -388,7 +388,8 @@ function list_posts(array $filters, string $scope, int $currentUserId, bool $inc
     foreach ($posts as &$post) {
         $post['images'] = get_post_images((int) $post['id']);
         $post['tags'] = get_post_tags((int) $post['id']);
-        $post['comment_count'] = count_post_comments((int) $post['id']);
+        $post['comments'] = get_post_comments((int) $post['id']);
+        $post['comment_count'] = count($post['comments']);
     }
 
     return $posts;

@@ -379,6 +379,102 @@ function render_footer(): void
             }
         }
 
+        // 展开/收起卡片内快速添加注释框
+        function toggleQuickCommentForm(postId) {
+            const form = document.getElementById('quick-comment-form-' + postId);
+            if (!form) return;
+            form.classList.toggle('open');
+            if (form.classList.contains('open')) {
+                const input = document.getElementById('quick-comment-input-' + postId);
+                if (input) input.focus();
+            }
+        }
+
+        // 提交单行注释
+        async function submitQuickComment(e, postId) {
+            e.preventDefault();
+            const input = document.getElementById('quick-comment-input-' + postId);
+            if (!input) return;
+            const content = input.value.trim();
+            if (!content) return;
+
+            const formData = new FormData();
+            formData.append('_token', '<?= h(csrf_token()) ?>');
+            formData.append('post_id', postId);
+            formData.append('content', content);
+
+            try {
+                const response = await fetch('/?route=comment-add', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success && data.comment) {
+                    input.value = '';
+                    const list = document.getElementById('card-comment-list-' + postId);
+                    if (list) {
+                        list.style.display = 'flex';
+                        const row = document.createElement('div');
+                        row.className = 'card-comment-row';
+                        row.id = 'comment-row-' + data.comment.id;
+                        row.innerHTML = `
+                            <input type="checkbox" class="card-comment-checkbox" onchange="toggleCommentStatusAsync(${data.comment.id})">
+                            <span class="card-comment-text">${data.comment.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
+                            <span class="card-comment-meta">${data.comment.user_name} · ${data.comment.created_at}</span>
+                        `;
+                        list.appendChild(row);
+                    }
+                    // 更新卡片右上角评论数
+                    const card = document.getElementById('memo-card-' + postId);
+                    if (card) {
+                        const countLink = card.querySelector('.memo-header-ops a[title="详情"]');
+                        if (countLink && data.comments) {
+                            countLink.textContent = '💬 ' + data.comments.length;
+                        }
+                    }
+                } else if (data.message) {
+                    alert(data.message);
+                }
+            } catch (err) {
+                console.error('添加注释失败', err);
+            }
+        }
+
+        // 切换注释完成状态
+        async function toggleCommentStatusAsync(commentId) {
+            const formData = new FormData();
+            formData.append('_token', '<?= h(csrf_token()) ?>');
+            formData.append('comment_id', commentId);
+
+            try {
+                const response = await fetch('/?route=comment-toggle', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const row = document.getElementById('comment-row-' + commentId);
+                    if (row) {
+                        if (data.is_done === 1) {
+                            row.classList.add('is-done');
+                        } else {
+                            row.classList.remove('is-done');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('切换注释状态失败', err);
+            }
+        }
+
         // 切换弹出菜单
         function toggleReactionMenu(btn) {
             const container = btn.closest('.reaction-popover-container');
@@ -495,11 +591,38 @@ function render_post_card(array $post, array $user): void
             </div>
 
             <div class="memo-interactive-tools">
-                <a class="comment-btn-link" href="/?route=post-view&id=<?= (int) $post['id'] ?>">
+                <button type="button" class="comment-btn-link" onclick="toggleQuickCommentForm(<?= (int) $post['id'] ?>)" style="background:none;border:none;cursor:pointer;">
                     <span>✍️ 展开/添加注释</span>
-                </a>
+                </button>
             </div>
         </div>
+
+        <!-- 注释显示在标签下面，一行显示一条注释 -->
+        <?php
+        $comments = $post['comments'] ?? [];
+        ?>
+        <div class="card-comment-list" id="card-comment-list-<?= (int) $post['id'] ?>" style="<?= empty($comments) ? 'display:none;' : '' ?>">
+            <?php foreach ($comments as $cmt): ?>
+                <div class="card-comment-row <?= (int) $cmt['is_done'] === 1 ? 'is-done' : '' ?>" id="comment-row-<?= (int) $cmt['id'] ?>">
+                    <input type="checkbox"
+                           class="card-comment-checkbox"
+                           <?= (int) $cmt['is_done'] === 1 ? 'checked' : '' ?>
+                           onchange="toggleCommentStatusAsync(<?= (int) $cmt['id'] ?>)">
+                    <span class="card-comment-text"><?= h($cmt['content']) ?></span>
+                    <span class="card-comment-meta"><?= h($cmt['user_name']) ?> · <?= h(date('m-d H:i', strtotime($cmt['created_at']))) ?></span>
+                </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- 快速添加单行注释输入框 -->
+        <form class="card-quick-comment-form" id="quick-comment-form-<?= (int) $post['id'] ?>" onsubmit="submitQuickComment(event, <?= (int) $post['id'] ?>)">
+            <input type="text"
+                   class="quick-comment-input"
+                   id="quick-comment-input-<?= (int) $post['id'] ?>"
+                   placeholder="写下单行注释，按回车添加..."
+                   autocomplete="off">
+            <button type="submit" class="btn-primary" style="padding: 5px 12px; font-size: 12.5px; white-space: nowrap;">发表</button>
+        </form>
     </article>
     <?php
 }
@@ -767,22 +890,54 @@ if ($route === 'comment-add' && is_post_request()) {
 
     $postId = (int) ($_POST['post_id'] ?? 0);
     $content = trim((string) ($_POST['content'] ?? ''));
+    $returnRoute = (string) ($_POST['return_route'] ?? 'posts');
     $post = find_post_by_id($postId);
 
     if (!$post) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => '订货记录不存在']);
+            exit;
+        }
         flash('error', '订货记录不存在');
         redirect('/?route=posts');
     }
 
     if ($content === '') {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => '注释内容不能为空']);
+            exit;
+        }
         flash('error', '注释内容不能为空');
-        redirect('/?route=post-view&id=' . $postId);
+        redirect('/?route=' . $returnRoute);
     }
 
-    create_comment($postId, (int) $user['id'], $content);
+    $commentId = create_comment($postId, (int) $user['id'], $content);
     dispatch_post_webhook('post.updated', $postId);
+
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'comment' => [
+                'id' => $commentId,
+                'post_id' => $postId,
+                'content' => $content,
+                'user_name' => $user['display_name'],
+                'is_done' => 0,
+                'created_at' => date('m-d H:i')
+            ],
+            'comments' => get_post_comments($postId),
+        ]);
+        exit;
+    }
+
     flash('success', '注释已添加');
-    redirect('/?route=post-view&id=' . $postId);
+    if ($returnRoute === 'post-view') {
+        redirect('/?route=post-view&id=' . $postId);
+    }
+    redirect('/?route=' . $returnRoute);
 }
 
 if ($route === 'comment-toggle' && is_post_request()) {
@@ -794,6 +949,11 @@ if ($route === 'comment-toggle' && is_post_request()) {
     $comment = find_comment_by_id($commentId);
 
     if (!$comment) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => '注释不存在']);
+            exit;
+        }
         flash('error', '注释不存在');
         redirect('/?route=' . $returnRoute);
     }
@@ -801,11 +961,22 @@ if ($route === 'comment-toggle' && is_post_request()) {
     toggle_comment_done($commentId);
     dispatch_post_webhook('post.updated', (int) $comment['post_id']);
 
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+        $updatedComment = find_comment_by_id($commentId);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'is_done' => (int) $updatedComment['is_done'],
+            'comment_id' => $commentId
+        ]);
+        exit;
+    }
+
     if ($returnRoute === 'post-view') {
         redirect('/?route=post-view&id=' . (int) $comment['post_id']);
     }
 
-    redirect('/?route=comments-today');
+    redirect('/?route=' . $returnRoute);
 }
 
 if ($route === 'login') {
