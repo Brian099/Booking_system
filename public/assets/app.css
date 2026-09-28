@@ -830,30 +830,129 @@ button, input, select, textarea {
     transform: scale(1.02);
 }
 
-/* Card Footer */
+/* Card Footer & Emoji-like Quick Tag Reactions */
 .memo-card-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 6px;
+    margin-top: 10px;
     flex-wrap: wrap;
     gap: 8px;
 }
 
-.memo-tags {
+.memo-tags-reactions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
 }
 
-.tag-pill {
+.reaction-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 12px;
-    padding: 2px 9px;
+    padding: 3px 9px;
     border-radius: 12px;
+    font-size: 12px;
     font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: #f1f5f9;
+    color: var(--text-muted);
+    transition: all 0.15s ease;
+    user-select: none;
+    line-height: 1.4;
+}
+
+.reaction-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.reaction-chip.active {
+    border-color: currentColor;
+}
+
+.reaction-popover-container {
+    position: relative;
+    display: inline-block;
+}
+
+.add-reaction-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px dashed var(--border-color);
+    background: #ffffff;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.add-reaction-btn:hover {
+    background: #f1f5f9;
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: scale(1.08);
+}
+
+.reaction-picker-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 6px;
+    z-index: 100;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: max-content;
+    max-width: 280px;
+    animation: popoverFadeIn 0.15s ease;
+}
+
+@keyframes popoverFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.reaction-popover-container.open .reaction-picker-menu {
+    display: flex;
+}
+
+.reaction-menu-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    background: #f8fafc;
+    border: 1px solid var(--border-subtle);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.reaction-menu-item:hover {
+    background: #eff6ff;
+    border-color: var(--primary);
+    transform: scale(1.04);
+}
+
+.reaction-menu-item.tagged {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
 }
 
 .memo-interactive-tools {

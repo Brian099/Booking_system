@@ -434,6 +434,30 @@ function replace_post_tags(int $postId, array $tagIds, int $taggedByUserId): voi
     }
 }
 
+function toggle_post_tag(int $postId, int $tagId, int $taggedByUserId): bool
+{
+    $stmt = db()->prepare('SELECT id FROM post_tags WHERE post_id = :post_id AND tag_id = :tag_id LIMIT 1');
+    $stmt->execute(['post_id' => $postId, 'tag_id' => $tagId]);
+    $existing = $stmt->fetch();
+
+    if ($existing) {
+        $del = db()->prepare('DELETE FROM post_tags WHERE post_id = :post_id AND tag_id = :tag_id');
+        $del->execute(['post_id' => $postId, 'tag_id' => $tagId]);
+        touch_post($postId);
+        return false; // 已移除
+    } else {
+        $ins = db()->prepare('INSERT INTO post_tags (post_id, tag_id, tagged_by_user_id, created_at) VALUES (:post_id, :tag_id, :tagged_by_user_id, :created_at)');
+        $ins->execute([
+            'post_id' => $postId,
+            'tag_id' => $tagId,
+            'tagged_by_user_id' => $taggedByUserId,
+            'created_at' => now(),
+        ]);
+        touch_post($postId);
+        return true; // 已添加
+    }
+}
+
 function create_comment(int $postId, int $userId, string $content): int
 {
     $stmt = db()->prepare(

@@ -304,16 +304,103 @@ function render_footer(): void
             statusId: 'edit-images-input-status'
         });
 
-        // 标签下拉框切换
+        // 标签下拉框切换 (创建框)
         function toggleTagPopover(btn) {
             const container = btn.closest('.tag-select-container');
             if (container) {
                 container.classList.toggle('open');
             }
         }
+
+        // 快捷打标签异步无刷新切换
+        async function togglePostTagAsync(postId, tagId) {
+            const formData = new FormData();
+            formData.append('_token', '<?= h(csrf_token()) ?>');
+            formData.append('post_id', postId);
+            formData.append('tag_id', tagId);
+
+            try {
+                const response = await fetch('/?route=post-tag-toggle', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const card = document.getElementById('memo-card-' + postId);
+                    if (!card) return;
+                    const chipsContainer = card.querySelector('.reaction-chips-container');
+                    const pickerMenu = card.querySelector('.reaction-picker-menu');
+
+                    // 更新底部展示的胶囊
+                    if (chipsContainer) {
+                        chipsContainer.innerHTML = '';
+                        (data.tags || []).forEach(function (tag) {
+                            const chip = document.createElement('span');
+                            chip.className = 'reaction-chip active';
+                            chip.style.background = tag.color + '18';
+                            chip.style.color = tag.color;
+                            chip.style.borderColor = tag.color + '55';
+                            chip.title = '点击移除此标签';
+                            chip.onclick = function() { togglePostTagAsync(postId, tag.id); };
+                            chip.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ' + tag.color + ';"></span> ' + tag.name;
+                            chipsContainer.appendChild(chip);
+                        });
+                    }
+
+                    // 更新下拉菜单里的对勾与高亮状态
+                    if (pickerMenu) {
+                        const currentTagIds = (data.tags || []).map(function(t) { return parseInt(t.id, 10); });
+                        pickerMenu.querySelectorAll('.reaction-menu-item').forEach(function(item) {
+                            const tId = parseInt(item.getAttribute('data-tag-id'), 10);
+                            const checkSpan = item.querySelector('.tag-check-mark');
+                            if (currentTagIds.indexOf(tId) !== -1) {
+                                item.classList.add('tagged');
+                                if (!checkSpan) {
+                                    const span = document.createElement('span');
+                                    span.className = 'tag-check-mark';
+                                    span.textContent = '✓';
+                                    item.appendChild(span);
+                                }
+                            } else {
+                                item.classList.remove('tagged');
+                                if (checkSpan) {
+                                    checkSpan.remove();
+                                }
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('标签切换失败', err);
+            }
+        }
+
+        // 切换弹出菜单
+        function toggleReactionMenu(btn) {
+            const container = btn.closest('.reaction-popover-container');
+            if (container) {
+                const isOpen = container.classList.contains('open');
+                document.querySelectorAll('.reaction-popover-container.open').forEach(function(el) {
+                    el.classList.remove('open');
+                });
+                if (!isOpen) {
+                    container.classList.add('open');
+                }
+            }
+        }
+
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.tag-select-container')) {
                 document.querySelectorAll('.tag-select-container.open').forEach(function(el) {
+                    el.classList.remove('open');
+                });
+            }
+            if (!e.target.closest('.reaction-popover-container')) {
+                document.querySelectorAll('.reaction-popover-container.open').forEach(function(el) {
                     el.classList.remove('open');
                 });
             }
@@ -327,8 +414,13 @@ function render_footer(): void
 function render_post_card(array $post, array $user): void
 {
     $canEdit = can_edit_post($post, $user);
+    static $allTagsCache = null;
+    if ($allTagsCache === null) {
+        $allTagsCache = list_tags(true);
+    }
+    $postTagIds = array_map(static function ($t) { return (int) $t['id']; }, $post['tags'] ?? []);
     ?>
-    <article class="memo-card">
+    <article class="memo-card" id="memo-card-<?= (int) $post['id'] ?>">
         <div class="memo-card-header">
             <div class="memo-time-meta">
                 <span class="author-tag"><?= h($post['author_name']) ?></span>
@@ -365,15 +457,43 @@ function render_post_card(array $post, array $user): void
         <?php endif; ?>
 
         <div class="memo-card-footer">
-            <div class="memo-tags">
-                <?php if (!empty($post['tags'])): ?>
-                    <?php foreach ($post['tags'] as $tag): ?>
-                        <a href="/?route=posts&tag_id=<?= (int) $tag['id'] ?>" class="tag-pill" style="background: <?= h($tag['color']) ?>18; color: <?= h($tag['color']) ?>;">
-                            # <?= h($tag['name']) ?>
-                        </a>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+            <!-- 像打表情一样的快捷打标签区域 -->
+            <div class="memo-tags-reactions" data-post-id="<?= (int) $post['id'] ?>">
+                <div class="reaction-chips-container" style="display: inline-flex; flex-wrap: wrap; gap: 6px;">
+                    <?php if (!empty($post['tags'])): ?>
+                        <?php foreach ($post['tags'] as $tag): ?>
+                            <span class="reaction-chip active"
+                                  style="background: <?= h($tag['color']) ?>18; color: <?= h($tag['color']) ?>; border-color: <?= h($tag['color']) ?>55;"
+                                  onclick="togglePostTagAsync(<?= (int) $post['id'] ?>, <?= (int) $tag['id'] ?>)"
+                                  title="点击移除此标签">
+                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: <?= h($tag['color']) ?>;"></span>
+                                <?= h($tag['name']) ?>
+                            </span>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+
+                <!-- 类似表情的快捷选择菜单按钮 -->
+                <div class="reaction-popover-container">
+                    <button type="button" class="add-reaction-btn" onclick="toggleReactionMenu(this)" title="快捷打标签/分类">
+                        <span>🏷️</span>
+                    </button>
+                    <div class="reaction-picker-menu">
+                        <?php foreach ($allTagsCache as $availableTag): ?>
+                            <?php $isTagged = in_array((int) $availableTag['id'], $postTagIds, true); ?>
+                            <button type="button"
+                                    class="reaction-menu-item <?= $isTagged ? 'tagged' : '' ?>"
+                                    data-tag-id="<?= (int) $availableTag['id'] ?>"
+                                    onclick="togglePostTagAsync(<?= (int) $post['id'] ?>, <?= (int) $availableTag['id'] ?>)">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: <?= h($availableTag['color']) ?>;"></span>
+                                <span><?= h($availableTag['name']) ?></span>
+                                <?php if ($isTagged): ?><span class="tag-check-mark">✓</span><?php endif; ?>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
+
             <div class="memo-interactive-tools">
                 <a class="comment-btn-link" href="/?route=post-view&id=<?= (int) $post['id'] ?>">
                     <span>✍️ 展开/添加注释</span>
@@ -516,6 +636,29 @@ if ($route === 'profile-save' && is_post_request()) {
     update_user_profile((int) $user['id'], $displayName, $password !== '' ? $password : null);
     flash('success', '个人资料已更新');
     redirect('/?route=settings&tab=profile');
+}
+
+if ($route === 'post-tag-toggle' && is_post_request()) {
+    $user = require_login();
+    verify_csrf();
+    $postId = (int) ($_POST['post_id'] ?? 0);
+    $tagId = (int) ($_POST['tag_id'] ?? 0);
+
+    $isTagged = toggle_post_tag($postId, $tagId, (int) $user['id']);
+    dispatch_post_webhook('post.updated', $postId);
+
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'is_tagged' => $isTagged,
+            'tags' => get_post_tags($postId),
+        ]);
+        exit;
+    }
+
+    flash('success', '标签已更新');
+    redirect($_SERVER['HTTP_REFERER'] ?? '/?route=posts');
 }
 
 if ($route === 'post-store' && is_post_request()) {
