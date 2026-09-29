@@ -543,7 +543,7 @@ function list_webhooks(): array
     return db()->query('SELECT * FROM webhook_subscriptions ORDER BY created_at DESC')->fetchAll();
 }
 
-function create_webhook(string $name, string $targetUrl, string $secret): int
+function create_webhook(string $name, string $targetUrl, string $secret = ''): int
 {
     $time = now();
     $stmt = db()->prepare(
@@ -572,6 +572,12 @@ function toggle_webhook(int $id): void
         'id' => $id,
         'updated_at' => now(),
     ]);
+}
+
+function delete_webhook(int $id): void
+{
+    $stmt = db()->prepare('DELETE FROM webhook_subscriptions WHERE id = :id');
+    $stmt->execute(['id' => $id]);
 }
 
 function record_webhook_log(?int $subscriptionId, string $eventType, string $payload, ?int $responseStatus, ?string $responseBody, bool $isSuccess, ?string $errorMessage): void

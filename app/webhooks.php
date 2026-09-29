@@ -7,32 +7,29 @@ function dispatch_post_webhook(string $eventType, int $postId): void
         return;
     }
 
+    $actionText = [
+        'post.created' => '发布',
+        'post.updated' => '修改',
+        'post.deleted' => '删除',
+        'post.restored' => '恢复',
+    ][$eventType] ?? '更新';
+
+    $creator = !empty($post['author_name']) ? $post['author_name'] : ($post['author_username'] ?? '订货员');
+    $content = (string) $post['content'];
+
+    // 拼接详细信息链接
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $detailUrl = $scheme . '://' . $host . '/?route=post-view&id=' . (int) $post['id'];
+
+    // 按照参考文件格式拼接 content 文本
+    $textContent = "{$creator} [{$actionText}] 了订单！请及时查看并处理！\n- 关键词：{$content}\n\n查看详细信息：\n{$detailUrl}";
+
+    // 标准机器人与客户端接收的 JSON 格式
     $payloadArray = [
-        'event' => $eventType,
-        'sent_at' => now(),
-        'post' => [
-            'id' => (int) $post['id'],
-            'author_id' => (int) $post['author_id'],
-            'author_name' => $post['author_name'],
-            'content' => $post['content'],
-            'expected_ship_date' => $post['expected_ship_date'],
-            'created_at' => $post['created_at'],
-            'updated_at' => $post['updated_at'],
-            'deleted_at' => $post['deleted_at'],
-            'tags' => array_map(static function ($tag) {
-                return [
-                    'id' => (int) $tag['id'],
-                    'name' => $tag['name'],
-                    'color' => $tag['color'],
-                ];
-            }, get_post_tags($postId)),
-            'images' => array_map(static function ($image) {
-                return [
-                    'id' => (int) $image['id'],
-                    'file_path' => $image['file_path'],
-                    'url' => image_url($image['file_path']),
-                ];
-            }, get_post_images($postId)),
+        'msgtype' => 'text',
+        'text' => [
+            'content' => $textContent,
         ],
     ];
 
@@ -52,11 +49,6 @@ function send_webhook_request(array $subscription, string $eventType, string $pa
         'Content-Type: application/json',
         'X-Webhook-Event: ' . $eventType,
     ];
-
-    if (!empty($subscription['secret'])) {
-        $signature = hash_hmac('sha256', $payload, $subscription['secret']);
-        $headers[] = 'X-Webhook-Signature: ' . $signature;
-    }
 
     $ch = curl_init($subscription['target_url']);
     curl_setopt_array($ch, [

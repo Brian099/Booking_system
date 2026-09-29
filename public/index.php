@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 function render_memos_sidebar(?array $user, array $queryParams): void
 {
     $activeRoute = route_name();
+    $filterRoute = in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true) ? $activeRoute : 'posts';
     $currentKeyword = (string) ($queryParams['keyword'] ?? '');
     $selectedTagId = (int) ($queryParams['tag_id'] ?? 0);
     $selectedDate = (string) ($queryParams['date_from'] ?? '');
@@ -24,7 +25,7 @@ function render_memos_sidebar(?array $user, array $queryParams): void
     $nextYm = date('Y-m', strtotime('+1 month', $calTime));
     $currentYearMonthText = date('Y年n月', $calTime);
 
-    $scope = $activeRoute === 'my-posts' ? 'mine' : 'all';
+    $scope = $filterRoute === 'my-posts' ? 'mine' : 'all';
     $activeDays = get_active_post_dates($calYm, $scope, (int) ($user['id'] ?? 0));
     $tags = list_tags_with_counts(true);
 
@@ -53,7 +54,7 @@ function render_memos_sidebar(?array $user, array $queryParams): void
 
         <!-- 搜索框（手机端始终保留） -->
         <form method="get" action="/" class="search-form">
-            <input type="hidden" name="route" value="<?= h($activeRoute === 'recycle-bin' ? 'recycle-bin' : ($activeRoute === 'my-posts' ? 'my-posts' : 'posts')) ?>">
+            <input type="hidden" name="route" value="<?= h($filterRoute) ?>">
             <span class="search-icon">🔍</span>
             <input type="text" name="keyword" class="search-input" value="<?= h($currentKeyword) ?>" placeholder="搜索订货记录...">
         </form>
@@ -64,8 +65,8 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                 <div class="calendar-header">
                     <span><?= h($currentYearMonthText) ?></span>
                     <div>
-                        <a href="/?route=<?= h($activeRoute) ?>&cal_ym=<?= h($prevYm) ?>" class="calendar-nav-btn">&lt;</a>
-                        <a href="/?route=<?= h($activeRoute) ?>&cal_ym=<?= h($nextYm) ?>" class="calendar-nav-btn">&gt;</a>
+                        <a href="/?route=<?= h($filterRoute) ?>&cal_ym=<?= h($prevYm) ?>" class="calendar-nav-btn">&lt;</a>
+                        <a href="/?route=<?= h($filterRoute) ?>&cal_ym=<?= h($nextYm) ?>" class="calendar-nav-btn">&gt;</a>
                     </div>
                 </div>
                 <div class="calendar-grid">
@@ -89,8 +90,8 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                         $isToday = ($dayStr === $todayStr);
 
                         $targetUrl = $isSelected
-                            ? '/?route=' . h($activeRoute) // 点击已选中的日期取消筛选
-                            : '/?route=' . h($activeRoute) . '&date_from=' . $dayStr . '&date_to=' . $dayStr;
+                            ? '/?route=' . h($filterRoute) // 点击已选中的日期取消筛选
+                            : '/?route=' . h($filterRoute) . '&date_from=' . $dayStr . '&date_to=' . $dayStr;
                         ?>
                         <a href="<?= $targetUrl ?>"
                            class="calendar-day <?= $hasPost ? 'has-post' : '' ?> <?= $isSelected ? 'is-selected' : '' ?> <?= $isToday ? 'is-today' : '' ?>"
@@ -128,11 +129,11 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     <span>标签分类</span>
                 </div>
                 <div class="tag-tree-list">
-                    <a href="/?route=<?= h($activeRoute) ?>" class="tag-tree-item <?= $selectedTagId === 0 ? 'active' : '' ?>">
+                    <a href="/?route=<?= h($filterRoute) ?>" class="tag-tree-item <?= ($selectedTagId === 0 && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
                         <span># 全部标签</span>
                     </a>
                     <?php foreach ($tags as $tag): ?>
-                        <a href="/?route=<?= h($activeRoute) ?>&tag_id=<?= (int) $tag['id'] ?>" class="tag-tree-item <?= $selectedTagId === (int) $tag['id'] ? 'active' : '' ?>">
+                        <a href="/?route=<?= h($filterRoute) ?>&tag_id=<?= (int) $tag['id'] ?>" class="tag-tree-item <?= ($selectedTagId === (int) $tag['id'] && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
                             <span style="display: flex; align-items: center; gap: 6px;">
                                 <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: <?= h($tag['color']) ?>;"></span>
                                 <?= h($tag['name']) ?>
@@ -639,7 +640,8 @@ function render_post_card(array $post, array $user): void
                         </form>
                     <?php endif; ?>
                 </div>
-            </div>        <hr>
+            </div>        
+            <hr>
             <div class="memo-header-sub-row">
                 <span class="memo-time-text"><?= h(date('m月d日 H:i', strtotime($post['created_at']))) ?></span>
                 <span class="memo-ship-badge">📅 期望发货: <?= h($post['expected_ship_date']) ?></span>
@@ -835,15 +837,14 @@ if ($route === 'webhook-save' && is_post_request()) {
     verify_csrf();
     $name = trim((string) ($_POST['name'] ?? ''));
     $targetUrl = trim((string) ($_POST['target_url'] ?? ''));
-    $secret = trim((string) ($_POST['secret'] ?? ''));
 
-    if ($name === '' || $targetUrl === '' || $secret === '') {
-        flash('error', 'Webhook 名称、地址、密钥不能为空');
+    if ($name === '' || $targetUrl === '') {
+        flash('error', 'Webhook 名称和推送目标 URL 不能为空');
         redirect('/?route=settings&tab=webhooks');
     }
 
-    create_webhook($name, $targetUrl, $secret);
-    flash('success', 'Webhook 已添加');
+    create_webhook($name, $targetUrl);
+    flash('success', 'Webhook 订阅已添加');
     redirect('/?route=settings&tab=webhooks');
 }
 
@@ -852,6 +853,14 @@ if ($route === 'webhook-toggle' && is_post_request()) {
     verify_csrf();
     toggle_webhook((int) ($_POST['id'] ?? 0));
     flash('success', 'Webhook 状态已切换');
+    redirect('/?route=settings&tab=webhooks');
+}
+
+if ($route === 'webhook-delete' && is_post_request()) {
+    require_admin();
+    verify_csrf();
+    delete_webhook((int) ($_POST['id'] ?? 0));
+    flash('success', 'Webhook 订阅已删除');
     redirect('/?route=settings&tab=webhooks');
 }
 
@@ -1603,15 +1612,12 @@ if ($route === 'settings') {
                     <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
                     <div class="form-group">
                         <label>订阅名称</label>
-                        <input type="text" name="name" class="form-control" placeholder="如：钉钉机器人 / ERP同步" required>
+                        <input type="text" name="name" class="form-control" placeholder="如：企业微信群机器人 / 钉钉通知" required>
                     </div>
                     <div class="form-group">
                         <label>推送目标 URL</label>
-                        <input type="url" name="target_url" class="form-control" placeholder="https://..." required>
-                    </div>
-                    <div class="form-group">
-                        <label>验签 Secret Key</label>
-                        <input type="text" name="secret" class="form-control" placeholder="自定义密钥字符串" required>
+                        <input type="url" name="target_url" class="form-control" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx" required>
+                        <div style="font-size: 12px; color: var(--text-subtle); margin-top: 3px;">支持直接粘贴企业微信、飞书、钉钉机器人或自建服务带参数的完整 URL</div>
                     </div>
                     <button class="btn-primary" type="submit" style="margin-top: 10px; width: 100%;">添加订阅</button>
                 </form>
@@ -1624,18 +1630,25 @@ if ($route === 'settings') {
                 <?php else: ?>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         <?php foreach ($webhooks as $hook): ?>
-                            <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
+                            <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                                <div style="flex: 1; min-width: 0;">
                                     <div style="font-weight: 600;"><?= h($hook['name']) ?></div>
-                                    <div style="font-size: 12px; color: var(--text-subtle); margin-top: 2px;"><?= h($hook['target_url']) ?></div>
+                                    <div style="font-size: 12px; color: var(--text-subtle); margin-top: 2px; word-break: break-all;"><?= h($hook['target_url']) ?></div>
                                 </div>
-                                <form method="post" action="/?route=webhook-toggle">
-                                    <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
-                                    <input type="hidden" name="id" value="<?= (int) $hook['id'] ?>">
-                                    <button class="tool-btn" type="submit" style="color: <?= (int) $hook['is_active'] === 1 ? 'var(--success)' : 'var(--text-subtle)' ?>;">
-                                        <?= (int) $hook['is_active'] === 1 ? '● 运行中' : '○ 已停用' ?>
-                                    </button>
-                                </form>
+                                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                    <form method="post" action="/?route=webhook-toggle" style="display: inline;">
+                                        <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                                        <input type="hidden" name="id" value="<?= (int) $hook['id'] ?>">
+                                        <button class="tool-btn" type="submit" style="color: <?= (int) $hook['is_active'] === 1 ? 'var(--success)' : 'var(--text-subtle)' ?>;">
+                                            <?= (int) $hook['is_active'] === 1 ? '● 运行中' : '○ 已停用' ?>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="/?route=webhook-delete" style="display: inline;" onsubmit="return confirm('确定要删除该 Webhook 订阅吗？');">
+                                        <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                                        <input type="hidden" name="id" value="<?= (int) $hook['id'] ?>">
+                                        <button class="tool-btn" type="submit" style="color: var(--danger);" title="删除">🗑️</button>
+                                    </form>
+                                </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
