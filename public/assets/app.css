@@ -95,8 +95,17 @@ button, input, select, textarea {
     gap: 10px;
 }
 
+.sidebar-header-actions {
+    display: none;
+}
+
+.sidebar-cal-toggle-btn,
 .sidebar-toggle-btn {
     display: none;
+}
+
+.sidebar-calendar-section {
+    display: block;
 }
 
 .sidebar-collapsible {
@@ -1319,6 +1328,37 @@ button, input, select, textarea {
         justify-content: space-between;
         width: 100%;
         padding: 0;
+    }
+    .sidebar-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .sidebar-cal-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 32px;
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 15px;
+        transition: all 0.2s ease;
+        padding: 0;
+    }
+    .sidebar-cal-toggle-btn:hover,
+    .sidebar-cal-toggle-btn.active {
+        background: #eff6ff;
+        border-color: #93c5fd;
+    }
+    .sidebar-calendar-section {
+        display: none;
+    }
+    .sidebar-calendar-section.open {
+        display: block;
+        animation: sidebarExpand 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     .sidebar-toggle-btn {
         display: flex;

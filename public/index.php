@@ -39,11 +39,16 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                 <div class="sidebar-logo">M</div>
                 <div class="sidebar-title"><?= h(app_config('app_name')) ?></div>
             </div>
-            <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleMobileSidebar()" aria-label="展开/收起菜单" title="展开/收起菜单">
-                <span class="hamburger-line"></span>
-                <span class="hamburger-line"></span>
-                <span class="hamburger-line"></span>
-            </button>
+            <div class="sidebar-header-actions">
+                <button type="button" class="sidebar-cal-toggle-btn" id="sidebar-cal-toggle-btn" onclick="toggleMobileCalendar()" aria-label="弹出/收起日历" title="弹出/收起日历">
+                    <span class="cal-btn-icon">📅</span>
+                </button>
+                <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleMobileSidebar()" aria-label="展开/收起菜单" title="展开/收起菜单">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+            </div>
         </div>
 
         <!-- 搜索框（手机端始终保留） -->
@@ -53,9 +58,8 @@ function render_memos_sidebar(?array $user, array $queryParams): void
             <input type="text" name="keyword" class="search-input" value="<?= h($currentKeyword) ?>" placeholder="搜索订货记录...">
         </form>
 
-        <!-- 手机端可折叠内容区 -->
-        <div class="sidebar-collapsible" id="sidebar-collapsible">
-            <!-- 月历组件 (Memos Calendar) -->
+        <!-- 独立月历组件区 (手机端通过日历按钮弹出/收起，PC端常驻显示) -->
+        <div class="sidebar-calendar-section" id="sidebar-calendar-section">
             <div class="calendar-card">
                 <div class="calendar-header">
                     <span><?= h($currentYearMonthText) ?></span>
@@ -96,7 +100,10 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     <?php endfor; ?>
                 </div>
             </div>
+        </div>
 
+        <!-- 手机端可折叠内容区 (三条杠控制：菜单、标签、用户信息) -->
+        <div class="sidebar-collapsible" id="sidebar-collapsible">
             <!-- 导航菜单 -->
             <nav class="sidebar-menu">
                 <a class="nav-item <?= $activeRoute === 'posts' ? 'active' : '' ?>" href="/?route=posts">
@@ -265,7 +272,16 @@ function render_footer(): void
             item.addEventListener('mouseleave', function () { timer = setTimeout(function () { dismissToast(item); }, duration); });
         };
 
-        // 手机端侧边栏折叠/展开
+        // 手机端独立月历折叠/展开
+        function toggleMobileCalendar() {
+            const cal = document.getElementById('sidebar-calendar-section');
+            const btn = document.getElementById('sidebar-cal-toggle-btn');
+            if (!cal) return;
+            cal.classList.toggle('open');
+            if (btn) btn.classList.toggle('active');
+        }
+
+        // 手机端侧边栏菜单折叠/展开
         function toggleMobileSidebar() {
             const el = document.getElementById('sidebar-collapsible');
             const btn = document.getElementById('sidebar-toggle-btn');
