@@ -35,116 +35,126 @@ function render_memos_sidebar(?array $user, array $queryParams): void
     ?>
     <aside class="app-sidebar">
         <div class="sidebar-header">
-            <div class="sidebar-logo">M</div>
-            <div class="sidebar-title"><?= h(app_config('app_name')) ?></div>
+            <div class="sidebar-brand">
+                <div class="sidebar-logo">M</div>
+                <div class="sidebar-title"><?= h(app_config('app_name')) ?></div>
+            </div>
+            <button type="button" class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleMobileSidebar()" aria-label="展开/收起菜单" title="展开/收起菜单">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
         </div>
 
-        <!-- 搜索框 -->
+        <!-- 搜索框（手机端始终保留） -->
         <form method="get" action="/" class="search-form">
             <input type="hidden" name="route" value="<?= h($activeRoute === 'recycle-bin' ? 'recycle-bin' : ($activeRoute === 'my-posts' ? 'my-posts' : 'posts')) ?>">
             <span class="search-icon">🔍</span>
             <input type="text" name="keyword" class="search-input" value="<?= h($currentKeyword) ?>" placeholder="搜索订货记录...">
         </form>
 
-        <!-- 月历组件 (Memos Calendar) -->
-        <div class="calendar-card">
-            <div class="calendar-header">
-                <span><?= h($currentYearMonthText) ?></span>
-                <div>
-                    <a href="/?route=<?= h($activeRoute) ?>&cal_ym=<?= h($prevYm) ?>" class="calendar-nav-btn">&lt;</a>
-                    <a href="/?route=<?= h($activeRoute) ?>&cal_ym=<?= h($nextYm) ?>" class="calendar-nav-btn">&gt;</a>
+        <!-- 手机端可折叠内容区 -->
+        <div class="sidebar-collapsible" id="sidebar-collapsible">
+            <!-- 月历组件 (Memos Calendar) -->
+            <div class="calendar-card">
+                <div class="calendar-header">
+                    <span><?= h($currentYearMonthText) ?></span>
+                    <div>
+                        <a href="/?route=<?= h($activeRoute) ?>&cal_ym=<?= h($prevYm) ?>" class="calendar-nav-btn">&lt;</a>
+                        <a href="/?route=<?= h($activeRoute) ?>&cal_ym=<?= h($nextYm) ?>" class="calendar-nav-btn">&gt;</a>
+                    </div>
+                </div>
+                <div class="calendar-grid">
+                    <div class="calendar-weekday">日</div>
+                    <div class="calendar-weekday">一</div>
+                    <div class="calendar-weekday">二</div>
+                    <div class="calendar-weekday">三</div>
+                    <div class="calendar-weekday">四</div>
+                    <div class="calendar-weekday">五</div>
+                    <div class="calendar-weekday">六</div>
+
+                    <?php for ($i = 0; $i < $firstDayOfWeek; $i++): ?>
+                        <div class="calendar-day other-month"></div>
+                    <?php endfor; ?>
+
+                    <?php for ($day = 1; $day <= $daysInMonth; $day++): ?>
+                        <?php
+                        $dayStr = sprintf('%s-%02d', $calYm, $day);
+                        $hasPost = !empty($activeDays[$dayStr]);
+                        $isSelected = ($selectedDate === $dayStr);
+                        $isToday = ($dayStr === $todayStr);
+
+                        $targetUrl = $isSelected
+                            ? '/?route=' . h($activeRoute) // 点击已选中的日期取消筛选
+                            : '/?route=' . h($activeRoute) . '&date_from=' . $dayStr . '&date_to=' . $dayStr;
+                        ?>
+                        <a href="<?= $targetUrl ?>"
+                           class="calendar-day <?= $hasPost ? 'has-post' : '' ?> <?= $isSelected ? 'is-selected' : '' ?> <?= $isToday ? 'is-today' : '' ?>"
+                           title="<?= $dayStr ?><?= $hasPost ? ' (' . $activeDays[$dayStr] . '条记录)' : '' ?>">
+                            <?= $day ?>
+                        </a>
+                    <?php endfor; ?>
                 </div>
             </div>
-            <div class="calendar-grid">
-                <div class="calendar-weekday">日</div>
-                <div class="calendar-weekday">一</div>
-                <div class="calendar-weekday">二</div>
-                <div class="calendar-weekday">三</div>
-                <div class="calendar-weekday">四</div>
-                <div class="calendar-weekday">五</div>
-                <div class="calendar-weekday">六</div>
 
-                <?php for ($i = 0; $i < $firstDayOfWeek; $i++): ?>
-                    <div class="calendar-day other-month"></div>
-                <?php endfor; ?>
-
-                <?php for ($day = 1; $day <= $daysInMonth; $day++): ?>
-                    <?php
-                    $dayStr = sprintf('%s-%02d', $calYm, $day);
-                    $hasPost = !empty($activeDays[$dayStr]);
-                    $isSelected = ($selectedDate === $dayStr);
-                    $isToday = ($dayStr === $todayStr);
-
-                    $targetUrl = $isSelected
-                        ? '/?route=' . h($activeRoute) // 点击已选中的日期取消筛选
-                        : '/?route=' . h($activeRoute) . '&date_from=' . $dayStr . '&date_to=' . $dayStr;
-                    ?>
-                    <a href="<?= $targetUrl ?>"
-                       class="calendar-day <?= $hasPost ? 'has-post' : '' ?> <?= $isSelected ? 'is-selected' : '' ?> <?= $isToday ? 'is-today' : '' ?>"
-                       title="<?= $dayStr ?><?= $hasPost ? ' (' . $activeDays[$dayStr] . '条记录)' : '' ?>">
-                        <?= $day ?>
-                    </a>
-                <?php endfor; ?>
-            </div>
-        </div>
-
-        <!-- 导航菜单 -->
-        <nav class="sidebar-menu">
-            <a class="nav-item <?= $activeRoute === 'posts' ? 'active' : '' ?>" href="/?route=posts">
-                <span class="icon">📋</span> 全部记录
-            </a>
-            <a class="nav-item <?= $activeRoute === 'my-posts' ? 'active' : '' ?>" href="/?route=my-posts">
-                <span class="icon">👤</span> 我的记录
-            </a>
-            <a class="nav-item <?= $activeRoute === 'comments-today' ? 'active' : '' ?>" href="/?route=comments-today">
-                <span class="icon">✅</span> 今日待办注释
-            </a>
-            <?php if (is_admin()): ?>
-                <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
-                    <span class="icon">🗑️</span> 回收站
+            <!-- 导航菜单 -->
+            <nav class="sidebar-menu">
+                <a class="nav-item <?= $activeRoute === 'posts' ? 'active' : '' ?>" href="/?route=posts">
+                    <span class="icon">📋</span> 全部记录
                 </a>
+                <a class="nav-item <?= $activeRoute === 'my-posts' ? 'active' : '' ?>" href="/?route=my-posts">
+                    <span class="icon">👤</span> 我的记录
+                </a>
+                <a class="nav-item <?= $activeRoute === 'comments-today' ? 'active' : '' ?>" href="/?route=comments-today">
+                    <span class="icon">✅</span> 今日待办注释
+                </a>
+                <?php if (is_admin()): ?>
+                    <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
+                        <span class="icon">🗑️</span> 回收站
+                    </a>
+                <?php endif; ?>
+            </nav>
+
+            <!-- 标签区 -->
+            <div>
+                <div class="sidebar-section-title">
+                    <span>标签分类</span>
+                </div>
+                <div class="tag-tree-list">
+                    <a href="/?route=<?= h($activeRoute) ?>" class="tag-tree-item <?= $selectedTagId === 0 ? 'active' : '' ?>">
+                        <span># 全部标签</span>
+                    </a>
+                    <?php foreach ($tags as $tag): ?>
+                        <a href="/?route=<?= h($activeRoute) ?>&tag_id=<?= (int) $tag['id'] ?>" class="tag-tree-item <?= $selectedTagId === (int) $tag['id'] ? 'active' : '' ?>">
+                            <span style="display: flex; align-items: center; gap: 6px;">
+                                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: <?= h($tag['color']) ?>;"></span>
+                                <?= h($tag['name']) ?>
+                            </span>
+                            <?php if ((int) $tag['post_count'] > 0): ?>
+                                <span class="tag-badge"><?= (int) $tag['post_count'] ?></span>
+                            <?php endif; ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <!-- 底部用户信息（点击进入设置） -->
+            <?php if ($user): ?>
+                <div class="sidebar-user">
+                    <a href="/?route=settings" class="user-info-btn <?= $activeRoute === 'settings' ? 'active' : '' ?>" title="点击进入系统与个人设置">
+                        <div class="user-avatar"><?= mb_substr($user['display_name'], 0, 1, 'UTF-8') ?></div>
+                        <div class="user-meta-box">
+                            <div class="user-name"><?= h($user['display_name']) ?> <span class="settings-badge-icon">⚙️</span></div>
+                            <div class="user-role"><?= $user['role'] === 'admin' ? '系统管理员' : '订货员' ?></div>
+                        </div>
+                    </a>
+                    <form method="post" action="/?route=logout">
+                        <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                        <button class="logout-btn" type="submit" title="退出登录">🚪</button>
+                    </form>
+                </div>
             <?php endif; ?>
-        </nav>
-
-        <!-- 标签区 -->
-        <div>
-            <div class="sidebar-section-title">
-                <span>标签分类</span>
-            </div>
-            <div class="tag-tree-list">
-                <a href="/?route=<?= h($activeRoute) ?>" class="tag-tree-item <?= $selectedTagId === 0 ? 'active' : '' ?>">
-                    <span># 全部标签</span>
-                </a>
-                <?php foreach ($tags as $tag): ?>
-                    <a href="/?route=<?= h($activeRoute) ?>&tag_id=<?= (int) $tag['id'] ?>" class="tag-tree-item <?= $selectedTagId === (int) $tag['id'] ? 'active' : '' ?>">
-                        <span style="display: flex; align-items: center; gap: 6px;">
-                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: <?= h($tag['color']) ?>;"></span>
-                            <?= h($tag['name']) ?>
-                        </span>
-                        <?php if ((int) $tag['post_count'] > 0): ?>
-                            <span class="tag-badge"><?= (int) $tag['post_count'] ?></span>
-                        <?php endif; ?>
-                    </a>
-                <?php endforeach; ?>
-            </div>
         </div>
-
-        <!-- 底部用户信息（点击进入设置） -->
-        <?php if ($user): ?>
-            <div class="sidebar-user">
-                <a href="/?route=settings" class="user-info-btn <?= $activeRoute === 'settings' ? 'active' : '' ?>" title="点击进入系统与个人设置">
-                    <div class="user-avatar"><?= mb_substr($user['display_name'], 0, 1, 'UTF-8') ?></div>
-                    <div class="user-meta-box">
-                        <div class="user-name"><?= h($user['display_name']) ?> <span class="settings-badge-icon">⚙️</span></div>
-                        <div class="user-role"><?= $user['role'] === 'admin' ? '系统管理员' : '订货员' ?></div>
-                    </div>
-                </a>
-                <form method="post" action="/?route=logout">
-                    <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
-                    <button class="logout-btn" type="submit" title="退出登录">🚪</button>
-                </form>
-            </div>
-        <?php endif; ?>
     </aside>
     <?php
 }
@@ -161,6 +171,17 @@ function render_header(string $title, ?array $user = null): void
         <link rel="stylesheet" href="/assets/app.css">
     </head>
     <body>
+    <div id="toast-container" class="toast-container" aria-live="polite">
+        <?php foreach (['success', 'error'] as $flashType): ?>
+            <?php if ($message = flash($flashType)): ?>
+                <div class="toast-item toast-<?= $flashType ?>" data-auto-dismiss="3500">
+                    <span class="toast-icon"><?= $flashType === 'success' ? '✓' : '!' ?></span>
+                    <span class="toast-message"><?= h($message) ?></span>
+                    <button type="button" class="toast-close" onclick="dismissToast(this.closest('.toast-item'))" aria-label="关闭">&times;</button>
+                </div>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
     <div class="app-layout">
     <?php
     if ($user) {
@@ -168,13 +189,6 @@ function render_header(string $title, ?array $user = null): void
     }
     ?>
     <main class="app-main">
-        <?php foreach (['success', 'error'] as $flashType): ?>
-            <?php if ($message = flash($flashType)): ?>
-                <div class="alert <?= $flashType === 'success' ? 'alert-success' : 'alert-error' ?>">
-                    <?= $flashType === 'success' ? '✅' : '⚠️' ?> <?= h($message) ?>
-                </div>
-            <?php endif; ?>
-        <?php endforeach; ?>
     <?php
 }
 
@@ -184,6 +198,82 @@ function render_footer(): void
     </main>
     </div>
     <script>
+        // Toast 消息提示管理与自动隐藏
+        function dismissToast(el) {
+            if (!el || el.classList.contains('toast-hiding')) return;
+            el.classList.add('toast-hiding');
+            setTimeout(function () {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }, 300);
+        }
+
+        function initToastAutoDismiss() {
+            document.querySelectorAll('.toast-item').forEach(function (el) {
+                const duration = parseInt(el.getAttribute('data-auto-dismiss') || '3500', 10);
+                let timer = null;
+                function startTimer() {
+                    timer = setTimeout(function () {
+                        dismissToast(el);
+                    }, duration);
+                }
+                el.addEventListener('mouseenter', function () {
+                    if (timer) clearTimeout(timer);
+                });
+                el.addEventListener('mouseleave', function () {
+                    startTimer();
+                });
+                startTimer();
+            });
+        }
+        initToastAutoDismiss();
+
+        window.showToast = function (message, type, duration) {
+            type = type || 'success';
+            duration = duration || 3500;
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+            const item = document.createElement('div');
+            item.className = 'toast-item toast-' + (type === 'error' ? 'error' : 'success');
+            item.setAttribute('data-auto-dismiss', duration);
+
+            const icon = document.createElement('span');
+            icon.className = 'toast-icon';
+            icon.textContent = type === 'error' ? '!' : '✓';
+
+            const msg = document.createElement('span');
+            msg.className = 'toast-message';
+            msg.textContent = message;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'toast-close';
+            closeBtn.innerHTML = '&times;';
+            closeBtn.onclick = function () { dismissToast(item); };
+
+            item.appendChild(icon);
+            item.appendChild(msg);
+            item.appendChild(closeBtn);
+            container.appendChild(item);
+
+            let timer = setTimeout(function () { dismissToast(item); }, duration);
+            item.addEventListener('mouseenter', function () { if (timer) clearTimeout(timer); });
+            item.addEventListener('mouseleave', function () { timer = setTimeout(function () { dismissToast(item); }, duration); });
+        };
+
+        // 手机端侧边栏折叠/展开
+        function toggleMobileSidebar() {
+            const el = document.getElementById('sidebar-collapsible');
+            const btn = document.getElementById('sidebar-toggle-btn');
+            if (!el) return;
+            el.classList.toggle('open');
+            if (btn) btn.classList.toggle('active');
+        }
+
         // 初始化剪贴板与文件上传实时缩略图预览
         function initPasteAndUpload(config) {
             const textarea = document.getElementById(config.textareaId);
