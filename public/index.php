@@ -887,7 +887,6 @@ if ($route === 'post-tag-toggle' && is_post_request()) {
     $tagId = (int) ($_POST['tag_id'] ?? 0);
 
     $isTagged = toggle_post_tag($postId, $tagId, (int) $user['id']);
-    dispatch_post_webhook('post.updated', $postId);
 
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
         header('Content-Type: application/json');
@@ -998,7 +997,6 @@ if ($route === 'post-tags' && is_post_request()) {
 
     $tagIds = array_map('intval', $_POST['tag_ids'] ?? []);
     replace_post_tags($postId, $tagIds, (int) $user['id']);
-    dispatch_post_webhook('post.updated', $postId);
     flash('success', '标签已更新');
     redirect('/?route=post-view&id=' . $postId);
 }
@@ -1033,7 +1031,6 @@ if ($route === 'comment-add' && is_post_request()) {
     }
 
     $commentId = create_comment($postId, (int) $user['id'], $content);
-    dispatch_post_webhook('post.updated', $postId);
 
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
         header('Content-Type: application/json');
@@ -1078,7 +1075,6 @@ if ($route === 'comment-toggle' && is_post_request()) {
     }
 
     toggle_comment_done($commentId);
-    dispatch_post_webhook('post.updated', (int) $comment['post_id']);
 
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
         $updatedComment = find_comment_by_id($commentId);
