@@ -624,24 +624,28 @@ function render_post_card(array $post, array $user): void
     ?>
     <article class="memo-card" id="memo-card-<?= (int) $post['id'] ?>">
         <div class="memo-card-header">
-            <div class="memo-time-meta">
-                <span class="author-tag"><?= h($post['author_name']) ?></span>
-                <span>·</span>
-                <span><?= h(date('m月d日 H:i', strtotime($post['created_at']))) ?></span>
+            <div class="memo-header-top-row">
+                <div class="memo-author-box">
+                    <span class="author-tag"><?= h($post['author_name']) ?></span>
+                </div>
+                <div class="memo-header-ops">
+                    <a class="memo-op-btn" href="/?route=post-view&id=<?= (int) $post['id'] ?>" title="详情">💬 <?= (int) ($post['comment_count'] ?? 0) ?></a>
+                    <?php if ($canEdit): ?>
+                        <a class="memo-op-btn" href="/?route=post-edit&id=<?= (int) $post['id'] ?>" title="编辑">✏️</a>
+                        <form method="post" action="/?route=post-delete" style="display:inline;" onsubmit="return confirm('确认将该记录移入回收站吗？');">
+                            <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                            <input type="hidden" name="id" value="<?= (int) $post['id'] ?>">
+                            <button class="memo-op-btn" type="submit" title="删除" style="color: var(--danger);">🗑️</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            </div>        <hr>
+            <div class="memo-header-sub-row">
+                <span class="memo-time-text"><?= h(date('m月d日 H:i', strtotime($post['created_at']))) ?></span>
                 <span class="memo-ship-badge">📅 期望发货: <?= h($post['expected_ship_date']) ?></span>
             </div>
-            <div class="memo-header-ops">
-                <a class="memo-op-btn" href="/?route=post-view&id=<?= (int) $post['id'] ?>" title="详情">💬 <?= (int) ($post['comment_count'] ?? 0) ?></a>
-                <?php if ($canEdit): ?>
-                    <a class="memo-op-btn" href="/?route=post-edit&id=<?= (int) $post['id'] ?>" title="编辑">✏️</a>
-                    <form method="post" action="/?route=post-delete" style="display:inline;" onsubmit="return confirm('确认将该记录移入回收站吗？');">
-                        <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
-                        <input type="hidden" name="id" value="<?= (int) $post['id'] ?>">
-                        <button class="memo-op-btn" type="submit" title="删除" style="color: var(--danger);">🗑️</button>
-                    </form>
-                <?php endif; ?>
-            </div>
         </div>
+
 
         <div class="memo-content"><?= nl2br(h($post['content'])) ?></div>
 

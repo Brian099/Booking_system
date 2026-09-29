@@ -855,22 +855,42 @@ button, input, select, textarea {
 
 .memo-card-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 5px;
     margin-bottom: 10px;
 }
 
-.memo-time-meta {
+.memo-header-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.memo-author-box {
     display: flex;
     align-items: center;
+    gap: 6px;
+}
+
+.memo-author-box .author-tag {
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 14px;
+}
+
+.memo-header-sub-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-muted);
 }
 
-.memo-time-meta .author-tag {
-    font-weight: 600;
-    color: var(--text-main);
+.memo-time-text {
+    font-size: 12px;
+    color: var(--text-muted);
 }
 
 .memo-ship-badge {
@@ -880,12 +900,13 @@ button, input, select, textarea {
     padding: 2px 7px;
     border-radius: 4px;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .memo-header-ops {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .memo-op-btn {
@@ -894,7 +915,7 @@ button, input, select, textarea {
     color: var(--text-subtle);
     cursor: pointer;
     font-size: 13px;
-    padding: 4px 6px;
+    padding: 3px 6px;
     border-radius: 4px;
     transition: all 0.15s ease;
 }
