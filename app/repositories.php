@@ -524,30 +524,19 @@ function toggle_comment_done(int $commentId, ?int $userId = null): void
     }
 }
 
-function list_today_comments(string $status = 'all'): array
+function list_pending_comments(): array
 {
-    $conditions = ['date(c.created_at) = :comment_date'];
-    $params = ['comment_date' => today()];
-
-    if ($status === 'pending') {
-        $conditions[] = 'c.is_done = 0';
-    } elseif ($status === 'done') {
-        $conditions[] = 'c.is_done = 1';
-    }
-
     $sql = '
         SELECT c.*, p.content AS post_content, p.id AS post_id, u.display_name AS user_name, au.display_name AS post_author_name
         FROM post_comments c
         INNER JOIN posts p ON p.id = c.post_id
         INNER JOIN users u ON u.id = c.user_id
         INNER JOIN users au ON au.id = p.author_id
-        WHERE ' . implode(' AND ', $conditions) . ' AND p.deleted_at IS NULL
-        ORDER BY c.is_done ASC, c.created_at DESC
+        WHERE c.is_done = 0 AND p.deleted_at IS NULL
+        ORDER BY c.created_at ASC
     ';
 
-    $stmt = db()->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->fetchAll();
+    return db()->query($sql)->fetchAll();
 }
 
 function list_webhooks(): array

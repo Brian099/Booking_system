@@ -113,8 +113,8 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                 <a class="nav-item <?= $activeRoute === 'my-posts' ? 'active' : '' ?>" href="/?route=my-posts">
                     <span class="icon">👤</span> 我的记录
                 </a>
-                <a class="nav-item <?= $activeRoute === 'comments-today' ? 'active' : '' ?>" href="/?route=comments-today">
-                    <span class="icon">✅</span> 今日待办
+                <a class="nav-item <?= $activeRoute === 'pending-comments' ? 'active' : '' ?>" href="/?route=pending-comments">
+                    <span class="icon">✅</span> 所有待办
                 </a>
                 <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
                     <span class="icon">🗑️</span> 回收站
@@ -1059,7 +1059,7 @@ if ($route === 'comment-toggle' && is_post_request()) {
     verify_csrf();
 
     $commentId = (int) ($_POST['comment_id'] ?? 0);
-    $returnRoute = (string) ($_POST['return_route'] ?? 'comments-today');
+    $returnRoute = (string) ($_POST['return_route'] ?? 'pending-comments');
     $comment = find_comment_by_id($commentId);
 
     if (!$comment) {
@@ -1391,34 +1391,28 @@ if ($route === 'post-view') {
     exit;
 }
 
-// ==================== 今日待办注释汇总 ====================
-if ($route === 'comments-today') {
-    $status = (string) ($_GET['status'] ?? 'all');
-    $comments = list_today_comments($status);
+// ==================== 所有待办注释汇总 ====================
+if ($route === 'pending-comments') {
+    $comments = list_pending_comments();
 
-    render_header('今日待办', $user);
+    render_header('所有待办', $user);
     ?>
     <div class="panel-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h2 class="panel-title" style="margin: 0;">✅ 今日注释与待办清单</h2>
-            <div>
-                <a href="/?route=comments-today&status=all" class="tool-btn <?= $status === 'all' ? 'active' : '' ?>">全部</a>
-                <a href="/?route=comments-today&status=pending" class="tool-btn <?= $status === 'pending' ? 'active' : '' ?>">未完成</a>
-                <a href="/?route=comments-today&status=done" class="tool-btn <?= $status === 'done' ? 'active' : '' ?>">已完成</a>
-            </div>
+            <h2 class="panel-title" style="margin: 0;">✅ 所有未完成注释</h2>
         </div>
 
         <div class="comment-section-box" style="border-top: none; padding-top: 0;">
             <?php if (!$comments): ?>
-                <div class="empty-placeholder">今天还没有产生注释记录</div>
+                <div class="empty-placeholder">暂无未完成的注释</div>
             <?php else: ?>
                 <?php foreach ($comments as $comment): ?>
-                    <div class="comment-row <?= (int) $comment['is_done'] === 1 ? 'done' : '' ?>" style="background: #ffffff; border: 1px solid var(--border-color); padding: 12px;">
+                    <div class="comment-row" style="background: #ffffff; border: 1px solid var(--border-color); padding: 12px;">
                         <form method="post" action="/?route=comment-toggle">
                             <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="comment_id" value="<?= (int) $comment['id'] ?>">
-                            <input type="hidden" name="return_route" value="comments-today">
-                            <input type="checkbox" onchange="this.form.submit()" <?= (int) $comment['is_done'] === 1 ? 'checked' : '' ?> style="margin-top: 4px;">
+                            <input type="hidden" name="return_route" value="pending-comments">
+                            <input type="checkbox" onchange="this.form.submit()" style="margin-top: 4px;">
                         </form>
                         <div class="comment-body">
                             <div style="font-size: 14px; font-weight: 500;"><?= nl2br(h($comment['content'])) ?></div>
