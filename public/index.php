@@ -114,13 +114,11 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     <span class="icon">👤</span> 我的记录
                 </a>
                 <a class="nav-item <?= $activeRoute === 'comments-today' ? 'active' : '' ?>" href="/?route=comments-today">
-                    <span class="icon">✅</span> 今日待办注释
+                    <span class="icon">✅</span> 今日待办
                 </a>
-                <?php if (is_admin()): ?>
-                    <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
-                        <span class="icon">🗑️</span> 回收站
-                    </a>
-                <?php endif; ?>
+                <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
+                    <span class="icon">🗑️</span> 回收站
+                </a>
             </nav>
 
             <!-- 标签区 -->
@@ -978,7 +976,7 @@ if ($route === 'post-delete' && is_post_request()) {
 }
 
 if ($route === 'post-restore' && is_post_request()) {
-    require_admin();
+    $user = require_login();
     verify_csrf();
     restore_post((int) ($_POST['id'] ?? 0));
     flash('success', '订货记录已恢复');
@@ -1074,7 +1072,7 @@ if ($route === 'comment-toggle' && is_post_request()) {
         redirect('/?route=' . $returnRoute);
     }
 
-    toggle_comment_done($commentId);
+    toggle_comment_done($commentId, (int) $user['id']);
 
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
         $updatedComment = find_comment_by_id($commentId);
@@ -1102,7 +1100,7 @@ if ($route === 'login') {
             <div style="text-align: center; margin-bottom: 20px;">
                 <div class="sidebar-logo" style="margin: 0 auto 10px; width: 42px; height: 42px; font-size: 20px;">M</div>
                 <h2 style="font-size: 20px; font-weight: 600;">订货记录系统</h2>
-                <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">内部协同 · 标签管理 · 代办跟踪</p>
+                <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">内部协同 · 标签管理 · 待办跟踪</p>
             </div>
             <form method="post" action="/?route=login">
                 <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
@@ -1117,7 +1115,7 @@ if ($route === 'login') {
                 <button class="btn-primary" type="submit" style="width: 100%; padding: 10px;">登 录</button>
             </form>
             <div style="margin-top: 16px; font-size: 12px; color: var(--text-subtle); text-align: center;">
-                默认管理员：admin / admin123
+                深圳利佳盛科技
             </div>
         </div>
     </div>
@@ -1138,10 +1136,6 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
         'tag_id' => (string) ($_GET['tag_id'] ?? ''),
         'expected_ship_date' => (string) ($_GET['expected_ship_date'] ?? ''),
     ];
-
-    if ($route === 'recycle-bin') {
-        require_admin();
-    }
 
     $posts = list_posts(
         $filters,
@@ -1402,7 +1396,7 @@ if ($route === 'comments-today') {
     $status = (string) ($_GET['status'] ?? 'all');
     $comments = list_today_comments($status);
 
-    render_header('今日待办注释', $user);
+    render_header('今日待办', $user);
     ?>
     <div class="panel-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">

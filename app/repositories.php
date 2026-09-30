@@ -128,6 +128,16 @@ function touch_post(int $postId): void
     ]);
 }
 
+function touch_post_if_author(int $postId, int $userId): void
+{
+    $stmt = db()->prepare('SELECT author_id FROM posts WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $postId]);
+    $authorId = (int) $stmt->fetchColumn();
+    if ($authorId > 0 && $authorId === $userId) {
+        touch_post($postId);
+    }
+}
+
 function create_post(int $authorId, string $content, string $expectedShipDate, array $images): int
 {
     $time = now();
@@ -427,7 +437,7 @@ function replace_post_tags(int $postId, array $tagIds, int $taggedByUserId): voi
             }
         }
 
-        touch_post($postId);
+        touch_post_if_author($postId, $taggedByUserId);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -444,7 +454,7 @@ function toggle_post_tag(int $postId, int $tagId, int $taggedByUserId): bool
     if ($existing) {
         $del = db()->prepare('DELETE FROM post_tags WHERE post_id = :post_id AND tag_id = :tag_id');
         $del->execute(['post_id' => $postId, 'tag_id' => $tagId]);
-        touch_post($postId);
+        touch_post_if_author($postId, $taggedByUserId);
         return false; // 已移除
     } else {
         $ins = db()->prepare('INSERT INTO post_tags (post_id, tag_id, tagged_by_user_id, created_at) VALUES (:post_id, :tag_id, :tagged_by_user_id, :created_at)');
@@ -454,7 +464,7 @@ function toggle_post_tag(int $postId, int $tagId, int $taggedByUserId): bool
             'tagged_by_user_id' => $taggedByUserId,
             'created_at' => now(),
         ]);
-        touch_post($postId);
+        touch_post_if_author($postId, $taggedByUserId);
         return true; // 已添加
     }
 }
@@ -474,7 +484,7 @@ function create_comment(int $postId, int $userId, string $content): int
         'updated_at' => $time,
     ]);
 
-    touch_post($postId);
+    touch_post_if_author($postId, $userId);
 
     return (int) db()->lastInsertId();
 }
@@ -488,7 +498,7 @@ function find_comment_by_id(int $commentId): ?array
     return $comment ?: null;
 }
 
-function toggle_comment_done(int $commentId): void
+function toggle_comment_done(int $commentId, ?int $userId = null): void
 {
     $comment = find_comment_by_id($commentId);
     if (!$comment) {
@@ -509,7 +519,9 @@ function toggle_comment_done(int $commentId): void
         'updated_at' => now(),
     ]);
 
-    touch_post((int) $comment['post_id']);
+    if ($userId !== null) {
+        touch_post_if_author((int) $comment['post_id'], $userId);
+    }
 }
 
 function list_today_comments(string $status = 'all'): array
