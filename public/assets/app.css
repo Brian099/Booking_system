@@ -112,6 +112,8 @@ button, input, select, textarea {
     display: flex;
     flex-direction: column;
     gap: 14px;
+    flex: 1;
+    min-height: 0;
 }
 
 .sidebar-logo {
@@ -349,11 +351,16 @@ button, input, select, textarea {
 .sidebar-user {
     margin-top: auto;
     padding-top: 12px;
+    padding-bottom: 2px;
     border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 4px;
+    position: sticky;
+    bottom: -16px;
+    background: var(--bg-sidebar);
+    z-index: 10;
 }
 
 .user-info-btn {
@@ -1420,10 +1427,16 @@ button, input, select, textarea {
         display: none;
         padding-top: 10px;
         border-top: 1px dashed var(--border-subtle);
+        flex: none;
     }
     .sidebar-collapsible.open {
         display: flex;
         animation: sidebarExpand 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .sidebar-user {
+        position: static;
+        margin-top: 10px;
+        padding-bottom: 0;
     }
     .app-main {
         padding: 14px 12px 60px;

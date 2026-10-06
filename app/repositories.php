@@ -372,11 +372,18 @@ function list_posts(array $filters, string $scope, int $currentUserId, bool $inc
     }
 
     if (!empty($filters['tag_id'])) {
-        $conditions[] = 'EXISTS (
-            SELECT 1 FROM post_tags pt
-            WHERE pt.post_id = p.id AND pt.tag_id = :tag_id
-        )';
-        $params['tag_id'] = (int) $filters['tag_id'];
+        if ($filters['tag_id'] === 'untagged' || $filters['tag_id'] === 'none' || (int) $filters['tag_id'] === -1) {
+            $conditions[] = 'NOT EXISTS (
+                SELECT 1 FROM post_tags pt
+                WHERE pt.post_id = p.id
+            )';
+        } else {
+            $conditions[] = 'EXISTS (
+                SELECT 1 FROM post_tags pt
+                WHERE pt.post_id = p.id AND pt.tag_id = :tag_id
+            )';
+            $params['tag_id'] = (int) $filters['tag_id'];
+        }
     }
 
     $sql = '
@@ -629,6 +636,19 @@ function list_tags_with_counts(bool $onlyActive = true): array
     $sql .= ' GROUP BY t.id ORDER BY t.sort_order ASC, t.id ASC';
 
     return db()->query($sql)->fetchAll();
+}
+
+function count_untagged_posts(): int
+{
+    $sql = '
+        SELECT COUNT(*) AS count
+        FROM posts p
+        WHERE p.deleted_at IS NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id
+        )
+    ';
+    return (int) (db()->query($sql)->fetchColumn() ?: 0);
 }
 
 function get_active_post_dates(string $yearMonth, string $scope = 'all', int $currentUserId = 0): array

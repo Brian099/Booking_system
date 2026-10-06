@@ -9,7 +9,9 @@ function render_memos_sidebar(?array $user, array $queryParams): void
     $activeRoute = route_name();
     $filterRoute = in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true) ? $activeRoute : 'posts';
     $currentKeyword = (string) ($queryParams['keyword'] ?? '');
-    $selectedTagId = (int) ($queryParams['tag_id'] ?? 0);
+    $selectedTag = (string) ($queryParams['tag_id'] ?? '');
+    $isUntaggedSelected = in_array($selectedTag, ['untagged', '-1', 'none'], true);
+    $selectedTagId = (!$isUntaggedSelected && is_numeric($selectedTag)) ? (int) $selectedTag : 0;
     $selectedDate = (string) ($queryParams['date_from'] ?? '');
     if ($selectedDate !== '' && $selectedDate !== (string) ($queryParams['date_to'] ?? '')) {
         $selectedDate = ''; // 不是单日筛选
@@ -28,6 +30,7 @@ function render_memos_sidebar(?array $user, array $queryParams): void
     $scope = $filterRoute === 'my-posts' ? 'mine' : 'all';
     $activeDays = get_active_post_dates($calYm, $scope, (int) ($user['id'] ?? 0));
     $tags = list_tags_with_counts(true);
+    $untaggedCount = count_untagged_posts();
 
     // 计算日历网格
     $firstDayOfWeek = (int) date('w', $calTime); // 0 (Sunday) to 6 (Saturday)
@@ -127,8 +130,17 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     <span>标签分类</span>
                 </div>
                 <div class="tag-tree-list">
-                    <a href="/?route=<?= h($filterRoute) ?>" class="tag-tree-item <?= ($selectedTagId === 0 && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
+                    <a href="/?route=<?= h($filterRoute) ?>" class="tag-tree-item <?= ($selectedTag === '' && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
                         <span># 全部标签</span>
+                    </a>
+                    <a href="/?route=<?= h($filterRoute) ?>&tag_id=untagged" class="tag-tree-item <?= ($isUntaggedSelected && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span>
+                            无标签
+                        </span>
+                        <?php if ($untaggedCount > 0): ?>
+                            <span class="tag-badge"><?= $untaggedCount ?></span>
+                        <?php endif; ?>
                     </a>
                     <?php foreach ($tags as $tag): ?>
                         <a href="/?route=<?= h($filterRoute) ?>&tag_id=<?= (int) $tag['id'] ?>" class="tag-tree-item <?= ($selectedTagId === (int) $tag['id'] && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
@@ -419,6 +431,11 @@ function render_footer(): void
 
         // 快捷打标签异步无刷新切换
         async function togglePostTagAsync(postId, tagId) {
+            // 点击选择标签后自动隐藏标签气泡/菜单
+            document.querySelectorAll('.reaction-popover-container.open').forEach(function(el) {
+                el.classList.remove('open');
+            });
+
             const formData = new FormData();
             formData.append('_token', '<?= h(csrf_token()) ?>');
             formData.append('post_id', postId);
@@ -1160,7 +1177,11 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
                 <?php if (!empty($filters['tag_id'])): ?>
                     <?php
                     $activeTagName = '';
-                    foreach ($allTags as $t) { if ((int)$t['id'] === (int)$filters['tag_id']) { $activeTagName = $t['name']; break; } }
+                    if (in_array($filters['tag_id'], ['untagged', '-1', 'none'], true)) {
+                        $activeTagName = '无标签';
+                    } else {
+                        foreach ($allTags as $t) { if ((int)$t['id'] === (int)$filters['tag_id']) { $activeTagName = $t['name']; break; } }
+                    }
                     ?>
                     标签 <strong>#<?= h($activeTagName) ?></strong>；
                 <?php endif; ?>
