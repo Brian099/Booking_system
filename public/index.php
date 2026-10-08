@@ -623,7 +623,89 @@ function render_footer(): void
                 });
             }
         });
+
+        // 图片灯箱：在当前窗口内放大查看，支持同一 post 内多图翻页
+        var lightboxImages = [];
+        var lightboxIndex = 0;
+
+        function renderLightbox() {
+            var box = document.getElementById('image-lightbox');
+            if (!box || lightboxImages.length === 0) return;
+            var img = box.querySelector('.lightbox-image');
+            var counter = box.querySelector('.lightbox-counter');
+            img.src = lightboxImages[lightboxIndex].src;
+            img.alt = lightboxImages[lightboxIndex].alt || '';
+            if (counter) {
+                counter.textContent = (lightboxIndex + 1) + ' / ' + lightboxImages.length;
+            }
+            var multiple = lightboxImages.length > 1;
+            box.querySelectorAll('.lightbox-nav').forEach(function (btn) {
+                btn.style.display = multiple ? '' : 'none';
+            });
+        }
+
+        function openLightbox(anchor, event) {
+            if (event) event.preventDefault();
+            var box = document.getElementById('image-lightbox');
+            if (!box) return false;
+            var gallery = anchor.closest('.memo-image-gallery');
+            var items = gallery
+                ? Array.prototype.slice.call(gallery.querySelectorAll('.memo-image-item'))
+                : [anchor];
+            lightboxImages = items.map(function (item) {
+                var thumb = item.querySelector('img');
+                return {
+                    src: item.getAttribute('href'),
+                    alt: thumb ? thumb.getAttribute('alt') : ''
+                };
+            });
+            lightboxIndex = Math.max(0, items.indexOf(anchor));
+            renderLightbox();
+            box.hidden = false;
+            document.body.style.overflow = 'hidden';
+            return false;
+        }
+
+        function closeLightbox() {
+            var box = document.getElementById('image-lightbox');
+            if (!box) return;
+            box.hidden = true;
+            document.body.style.overflow = '';
+        }
+
+        function stepLightbox(delta) {
+            if (lightboxImages.length === 0) return;
+            lightboxIndex = (lightboxIndex + delta + lightboxImages.length) % lightboxImages.length;
+            renderLightbox();
+        }
+
+        document.addEventListener('keydown', function (e) {
+            var box = document.getElementById('image-lightbox');
+            if (!box || box.hidden) return;
+            if (e.key === 'Escape') {
+                closeLightbox();
+            } else if (e.key === 'ArrowLeft') {
+                stepLightbox(-1);
+            } else if (e.key === 'ArrowRight') {
+                stepLightbox(1);
+            }
+        });
     </script>
+
+    <div id="image-lightbox" class="lightbox" hidden>
+        <div class="lightbox-backdrop" onclick="closeLightbox()"></div>
+        <button type="button" class="lightbox-close" onclick="closeLightbox()" aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <button type="button" class="lightbox-nav lightbox-prev" onclick="stepLightbox(-1)" aria-label="上一张">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <img class="lightbox-image" src="" alt="">
+        <button type="button" class="lightbox-nav lightbox-next" onclick="stepLightbox(1)" aria-label="下一张">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <div class="lightbox-counter"></div>
+    </div>
     </body>
     </html>
     <?php
@@ -642,7 +724,7 @@ function render_post_card(array $post, array $user): void
         <div class="memo-card-header">
             <div class="memo-header-top-row">
                 <div class="memo-author-box">
-                    <span class="author-tag"><?= h($post['author_name']) ?></span>
+                    <a class="author-tag" href="/?route=posts&author_id=<?= (int) $post['author_id'] ?>" title="筛选 <?= h($post['author_name']) ?> 的记录"><?= h($post['author_name']) ?></a>
                 </div>
                 <div class="memo-header-ops">
                     <a class="memo-op-btn" href="/?route=post-view&id=<?= (int) $post['id'] ?>" title="详情">💬 <?= (int) ($post['comment_count'] ?? 0) ?></a>
@@ -671,7 +753,7 @@ function render_post_card(array $post, array $user): void
                 <div class="memo-attachments-title">📎 附件图片 (<?= count($post['images']) ?>)</div>
                 <div class="memo-image-gallery">
                     <?php foreach ($post['images'] as $image): ?>
-                        <a class="memo-image-item" href="<?= h(image_url($image['file_path'])) ?>" target="_blank" rel="noreferrer" title="<?= h($image['original_name']) ?>">
+                        <a class="memo-image-item" href="<?= h(image_url($image['file_path'])) ?>" title="<?= h($image['original_name']) ?>" onclick="return openLightbox(this, event)">
                             <img src="<?= h(image_url($image['file_path'])) ?>" alt="<?= h($image['original_name']) ?>" loading="lazy">
                         </a>
                     <?php endforeach; ?>
@@ -719,7 +801,7 @@ function render_post_card(array $post, array $user): void
 
             <div class="memo-interactive-tools">
                 <button type="button" class="comment-btn-link" onclick="toggleQuickCommentForm(<?= (int) $post['id'] ?>)" style="background:none;border:none;cursor:pointer;">
-                    <span>✍️ 展开/添加注释</span>
+                    <span>✍️ 展开/添加待办</span>
                 </button>
             </div>
         </div>
@@ -1165,7 +1247,7 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
     $title = $route === 'my-posts' ? '我的记录' : ($route === 'recycle-bin' ? '回收站' : '订货时间流');
     render_header($title, $user);
 
-    $hasActiveFilter = !empty($filters['keyword']) || !empty($filters['date_from']) || !empty($filters['tag_id']);
+    $hasActiveFilter = !empty($filters['keyword']) || !empty($filters['date_from']) || !empty($filters['tag_id']) || !empty($filters['author_id']);
     ?>
 
     <?php if ($hasActiveFilter): ?>
@@ -1184,6 +1266,10 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
                     }
                     ?>
                     标签 <strong>#<?= h($activeTagName) ?></strong>；
+                <?php endif; ?>
+                <?php if (!empty($filters['author_id'])): ?>
+                    <?php $activeAuthor = find_user_by_id((int) $filters['author_id']); ?>
+                    作者 <strong><?= h($activeAuthor['display_name'] ?? ('#' . (int) $filters['author_id'])) ?></strong>；
                 <?php endif; ?>
             </div>
             <a href="/?route=<?= h($route) ?>" style="font-weight: 600;">清除筛选 ✕</a>

@@ -884,6 +884,14 @@ button, input, select, textarea {
     font-weight: 600;
     color: var(--text-main);
     font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.memo-author-box .author-tag:hover {
+    color: var(--primary);
+    text-decoration: underline;
 }
 
 .memo-header-sub-row {
@@ -997,6 +1005,131 @@ button, input, select, textarea {
 
 .memo-image-item:hover img {
     transform: scale(1.02);
+}
+
+/* 图片灯箱：当前窗口内放大查看 */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.88);
+}
+
+.lightbox[hidden] {
+    display: none;
+}
+
+.lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    cursor: zoom-out;
+}
+
+.lightbox-image {
+    position: relative;
+    max-width: 92vw;
+    max-height: 88vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #ffffff;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 3;
+    transition: background 0.2s ease;
+}
+
+.lightbox-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 3;
+    transition: background 0.2s ease;
+}
+
+.lightbox-nav:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.lightbox-close svg,
+.lightbox-nav svg {
+    display: block;
+}
+
+.lightbox-prev {
+    left: 20px;
+}
+
+.lightbox-next {
+    right: 20px;
+}
+
+.lightbox-counter {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #ffffff;
+    font-size: 13px;
+    z-index: 3;
+}
+
+@media (max-width: 640px) {
+    .lightbox-nav {
+        width: 40px;
+        height: 40px;
+        font-size: 22px;
+    }
+
+    .lightbox-prev {
+        left: 8px;
+    }
+
+    .lightbox-next {
+        right: 8px;
+    }
 }
 
 /* Card Footer & Emoji-like Quick Tag Reactions */
