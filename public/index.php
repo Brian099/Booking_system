@@ -690,6 +690,35 @@ function render_footer(): void
                 stepLightbox(1);
             }
         });
+
+        // 防止重复提交：提交中禁用按钮并显示“保存中…”，跳转后自然复位
+        function guardDoubleSubmit(event) {
+            var form = event.target;
+            if (form.dataset.submitting === '1') {
+                event.preventDefault();
+                return false;
+            }
+            form.dataset.submitting = '1';
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.dataset.originalText = btn.textContent;
+                btn.textContent = '保存中…';
+            }
+        }
+
+        // 浏览器后退恢复页面时，复位提交状态
+        window.addEventListener('pageshow', function (e) {
+            if (!e.persisted) return;
+            document.querySelectorAll('form[data-submitting="1"]').forEach(function (form) {
+                delete form.dataset.submitting;
+                var btn = form.querySelector('button[type="submit"]');
+                if (btn && btn.disabled) {
+                    btn.disabled = false;
+                    if (btn.dataset.originalText) btn.textContent = btn.dataset.originalText;
+                }
+            });
+        });
     </script>
 
     <div id="image-lightbox" class="lightbox" hidden>
@@ -1279,7 +1308,7 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
     <!-- 顶部极速创建卡片 (此刻的想法... 仿 Memos 风格) -->
     <?php if ($route !== 'recycle-bin'): ?>
         <div class="memo-editor-card">
-            <form method="post" action="/?route=post-store" enctype="multipart/form-data">
+            <form method="post" action="/?route=post-store" enctype="multipart/form-data" onsubmit="return guardDoubleSubmit(event)">
                 <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
                 <textarea id="quick-content-input" name="content" class="memo-textarea" placeholder="此刻的想法... 输入订货型号、数量、规格（支持 Ctrl+V 粘贴截图）" required></textarea>
 
@@ -1367,7 +1396,7 @@ if ($route === 'post-edit') {
     ?>
     <div class="panel-card">
         <h2 class="panel-title">✏️ 编辑订货记录 #<?= (int) $post['id'] ?></h2>
-        <form method="post" action="/?route=post-update" enctype="multipart/form-data">
+        <form method="post" action="/?route=post-update" enctype="multipart/form-data" onsubmit="return guardDoubleSubmit(event)">
             <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
             <input type="hidden" name="id" value="<?= (int) $post['id'] ?>">
 
