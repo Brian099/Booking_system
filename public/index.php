@@ -1171,7 +1171,7 @@ if ($route === 'comment-toggle' && is_post_request()) {
         redirect('/?route=' . $returnRoute);
     }
 
-    toggle_comment_done($commentId, (int) $user['id']);
+    toggle_comment_done($commentId);
 
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
         $updatedComment = find_comment_by_id($commentId);
