@@ -1,4 +1,6 @@
 /storage/database.sqlite
+/storage/database.sqlite-wal
+/storage/database.sqlite-shm
 !/storage/.gitkeep
 /public/uploads/*
 !/public/uploads/.gitkeep

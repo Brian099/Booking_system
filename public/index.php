@@ -1043,9 +1043,10 @@ if ($route === 'post-store' && is_post_request()) {
         $images = store_uploaded_images($_FILES['images'] ?? []);
         $postId = create_post((int) $user['id'], $content, $expectedShipDate, $images);
         replace_post_tags($postId, $tagIds, (int) $user['id']);
-        dispatch_post_webhook('post.created', $postId);
         flash('success', '订货记录已发布');
-        redirect('/?route=posts');
+        redirect_then('/?route=posts', static function () use ($postId): void {
+            dispatch_post_webhook('post.created', $postId);
+        });
     } catch (Throwable $e) {
         flash('error', $e->getMessage());
         redirect('/?route=posts');
@@ -1075,9 +1076,10 @@ if ($route === 'post-update' && is_post_request()) {
     try {
         $newImages = store_uploaded_images($_FILES['images'] ?? []);
         update_post_record($postId, $content, $expectedShipDate, $newImages, $removeImageIds);
-        dispatch_post_webhook('post.updated', $postId);
         flash('success', '订货记录已更新');
-        redirect('/?route=post-view&id=' . $postId);
+        redirect_then('/?route=post-view&id=' . $postId, static function () use ($postId): void {
+            dispatch_post_webhook('post.updated', $postId);
+        });
     } catch (Throwable $e) {
         flash('error', $e->getMessage());
         redirect('/?route=post-edit&id=' . $postId);
@@ -1096,9 +1098,10 @@ if ($route === 'post-delete' && is_post_request()) {
     }
 
     soft_delete_post($postId, (int) $user['id']);
-    dispatch_post_webhook('post.deleted', $postId);
     flash('success', '订货记录已移入回收站');
-    redirect('/?route=posts');
+    redirect_then('/?route=posts', static function () use ($postId): void {
+        dispatch_post_webhook('post.deleted', $postId);
+    });
 }
 
 if ($route === 'post-restore' && is_post_request()) {

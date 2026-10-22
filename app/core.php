@@ -24,6 +24,8 @@ function db(): PDO
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->exec('PRAGMA foreign_keys = ON');
+        $pdo->exec('PRAGMA journal_mode = WAL');
+        $pdo->exec('PRAGMA busy_timeout = 5000');
     }
 
     return $pdo;
@@ -47,6 +49,36 @@ function h(?string $value): string
 function redirect(string $path): void
 {
     header('Location: ' . $path);
+    exit;
+}
+
+/**
+ * 先返回重定向响应（释放会话锁），再执行耗时任务（如 Webhook 请求），避免用户等待。
+ */
+function redirect_then(string $path, callable $after): void
+{
+    ignore_user_abort(true);
+    session_write_close();
+
+    header('Location: ' . $path, true, 302);
+    header('Content-Length: 0');
+    header('Connection: close');
+
+    while (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+    flush();
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+
+    try {
+        $after();
+    } catch (Throwable $e) {
+        error_log('后台任务失败: ' . $e->getMessage());
+    }
+
     exit;
 }
 

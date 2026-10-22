@@ -56,7 +56,8 @@ function send_webhook_request(array $subscription, string $eventType, string $pa
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $payload,
         CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_TIMEOUT => 8,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 10,
     ]);
 
     $responseBody = curl_exec($ch);
