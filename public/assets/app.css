@@ -1321,16 +1321,13 @@ button, input, select, textarea {
 
 .card-comment-text {
     flex: 1;
+    min-width: 0;
     color: var(--text-main);
     word-break: break-word;
     font-size: 13px;
-}
-
-.card-comment-meta {
-    font-size: 11px;
-    color: var(--text-subtle);
     white-space: nowrap;
-    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .card-quick-comment-form {
@@ -1392,10 +1389,57 @@ button, input, select, textarea {
     flex: 1;
 }
 
-.comment-author-time {
-    font-size: 11px;
-    color: var(--text-subtle);
-    margin-top: 2px;
+/* 所有待办：一条待办一行，关联订货单靠右 */
+.todo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.todo-row form {
+    display: flex;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.todo-row input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.todo-text {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-weight: 500;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.todo-order {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 45%;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.todo-order:hover {
+    color: var(--primary);
+    text-decoration: underline;
 }
 
 /* Secondary Pages (Users, Webhooks, Tags, etc.) */
@@ -1583,5 +1627,39 @@ button, input, select, textarea {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@media (max-width: 640px) {
+    .todo-row {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .todo-row form {
+        margin-top: 3px;
+    }
+
+    .todo-text {
+        flex: 1 1 0;
+        white-space: normal;
+        word-break: break-word;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .todo-order {
+        flex: 1 1 100%;
+        max-width: 100%;
+        text-align: left;
+    }
+
+    .card-comment-text {
+        white-space: normal;
+        word-break: break-word;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
 }

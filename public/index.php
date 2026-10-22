@@ -546,7 +546,6 @@ function render_footer(): void
                         row.innerHTML = `
                             <input type="checkbox" class="card-comment-checkbox" onchange="toggleCommentStatusAsync(${data.comment.id})">
                             <span class="card-comment-text">${data.comment.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
-                            <span class="card-comment-meta">${data.comment.user_name} · ${data.comment.created_at}</span>
                         `;
                         list.appendChild(row);
                     }
@@ -847,7 +846,6 @@ function render_post_card(array $post, array $user): void
                            <?= (int) $cmt['is_done'] === 1 ? 'checked' : '' ?>
                            onchange="toggleCommentStatusAsync(<?= (int) $cmt['id'] ?>)">
                     <span class="card-comment-text"><?= h($cmt['content']) ?></span>
-                    <span class="card-comment-meta"><?= h($cmt['user_name']) ?> · <?= h(date('m-d H:i', strtotime($cmt['created_at']))) ?></span>
                 </div>
             <?php endforeach; ?>
         </div>
@@ -1510,12 +1508,6 @@ if ($route === 'post-view') {
                         </form>
                         <div class="comment-body">
                             <div><?= nl2br(h($comment['content'])) ?></div>
-                            <div class="comment-author-time">
-                                <?= h($comment['user_name']) ?> · <?= h(date('m-d H:i', strtotime($comment['created_at']))) ?>
-                                <?php if ((int) $comment['is_done'] === 1 && !empty($comment['done_at'])): ?>
-                                    · 已完成于 <?= h(date('m-d H:i', strtotime($comment['done_at']))) ?>
-                                <?php endif; ?>
-                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -1543,24 +1535,19 @@ if ($route === 'pending-comments') {
                 <div class="empty-placeholder">暂无未完成的注释</div>
             <?php else: ?>
                 <?php foreach ($comments as $comment): ?>
-                    <div class="comment-row" style="background: #ffffff; border: 1px solid var(--border-color); padding: 12px;">
+                    <div class="todo-row">
                         <form method="post" action="/?route=comment-toggle">
                             <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="comment_id" value="<?= (int) $comment['id'] ?>">
                             <input type="hidden" name="return_route" value="pending-comments">
-                            <input type="checkbox" onchange="this.form.submit()" style="margin-top: 4px;">
+                            <input type="checkbox" onchange="this.form.submit()" title="标记完成">
                         </form>
-                        <div class="comment-body">
-                            <div style="font-size: 14px; font-weight: 500;"><?= nl2br(h($comment['content'])) ?></div>
-                            <div class="comment-author-time" style="margin-top: 6px;">
-                                注释人：<strong><?= h($comment['user_name']) ?></strong> · <?= h($comment['created_at']) ?>
-                            </div>
-                            <div style="margin-top: 6px; font-size: 12px; color: var(--text-muted); background: #f8fafc; padding: 6px 10px; border-radius: 4px;">
-                                关联订货单：<a href="/?route=post-view&id=<?= (int) $comment['post_id'] ?>" style="color: var(--primary); font-weight: 500;">
-                                    #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>): <?= h(mb_strimwidth($comment['post_content'], 0, 50, '...')) ?>
-                                </a>
-                            </div>
-                        </div>
+                        <span class="todo-text" title="<?= h($comment['content']) ?>"><?= h($comment['content']) ?></span>
+                        <a class="todo-order"
+                           href="/?route=post-view&id=<?= (int) $comment['post_id'] ?>"
+                           title="关联订货单 #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>">
+                            #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>
+                        </a>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
