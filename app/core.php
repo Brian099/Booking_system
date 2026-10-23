@@ -41,6 +41,33 @@ function today(): string
     return date('Y-m-d');
 }
 
+/**
+ * 把时间转换成按自然日计算的相对标记：今天 / 昨天 / 前天 / N天前。
+ */
+function relative_day_label(string $dateTime): string
+{
+    $timestamp = strtotime($dateTime);
+    if ($timestamp === false) {
+        return '';
+    }
+
+    $targetDay = new DateTimeImmutable(date('Y-m-d', $timestamp));
+    $todayDay = new DateTimeImmutable(today());
+    $diffDays = (int) $targetDay->diff($todayDay)->format('%r%a');
+
+    if ($diffDays <= 0) {
+        return '今天';
+    }
+    if ($diffDays === 1) {
+        return '昨天';
+    }
+    if ($diffDays === 2) {
+        return '前天';
+    }
+
+    return $diffDays . '天前';
+}
+
 function h(?string $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');

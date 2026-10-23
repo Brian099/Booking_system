@@ -117,7 +117,7 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     <span class="icon">👤</span> 我的记录
                 </a>
                 <a class="nav-item <?= $activeRoute === 'pending-comments' ? 'active' : '' ?>" href="/?route=pending-comments">
-                    <span class="icon">✅</span> 所有待办
+                    <span class="icon">✅</span> 所有标注
                 </a>
                 <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
                     <span class="icon">🗑️</span> 回收站
@@ -1189,6 +1189,7 @@ if ($route === 'comment-toggle' && is_post_request()) {
 
     $commentId = (int) ($_POST['comment_id'] ?? 0);
     $returnRoute = (string) ($_POST['return_route'] ?? 'pending-comments');
+    $returnStatus = ($_POST['return_status'] ?? '') === 'done' ? 'done' : '';
     $comment = find_comment_by_id($commentId);
 
     if (!$comment) {
@@ -1198,7 +1199,7 @@ if ($route === 'comment-toggle' && is_post_request()) {
             exit;
         }
         flash('error', '注释不存在');
-        redirect('/?route=' . $returnRoute);
+        redirect('/?route=' . $returnRoute . ($returnStatus === 'done' ? '&status=done' : ''));
     }
 
     toggle_comment_done($commentId);
@@ -1218,7 +1219,7 @@ if ($route === 'comment-toggle' && is_post_request()) {
         redirect('/?route=post-view&id=' . (int) $comment['post_id']);
     }
 
-    redirect('/?route=' . $returnRoute);
+    redirect('/?route=' . $returnRoute . ($returnStatus === 'done' ? '&status=done' : ''));
 }
 
 if ($route === 'login') {
@@ -1522,29 +1523,38 @@ if ($route === 'post-view') {
     exit;
 }
 
-// ==================== 所有待办注释汇总 ====================
+// ==================== 所有标注汇总（待办 / 已办） ====================
 if ($route === 'pending-comments') {
-    $comments = list_pending_comments();
+    $showDone = ($_GET['status'] ?? '') === 'done';
+    $comments = list_comments_by_status($showDone);
 
-    render_header('所有待办', $user);
+    render_header('所有标注', $user);
     ?>
     <div class="panel-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h2 class="panel-title" style="margin: 0;">✅ 所有未完成注释</h2>
+        <div class="todo-panel-header">
+            <h2 class="panel-title" style="margin: 0;">✅ 所有标注</h2>
+            <div class="todo-tabs">
+                <a class="todo-tab <?= !$showDone ? 'active' : '' ?>" href="/?route=pending-comments">待办</a>
+                <a class="todo-tab <?= $showDone ? 'active' : '' ?>" href="/?route=pending-comments&status=done">已办</a>
+            </div>
         </div>
 
         <div class="comment-section-box" style="border-top: none; padding-top: 0;">
             <?php if (!$comments): ?>
-                <div class="empty-placeholder">暂无未完成的注释</div>
+                <div class="empty-placeholder"><?= $showDone ? '暂无已办标注' : '暂无待办标注' ?></div>
             <?php else: ?>
                 <?php foreach ($comments as $comment): ?>
-                    <div class="todo-row">
+                    <div class="todo-row <?= $showDone ? 'is-done' : '' ?>">
                         <form method="post" action="/?route=comment-toggle">
                             <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
                             <input type="hidden" name="comment_id" value="<?= (int) $comment['id'] ?>">
                             <input type="hidden" name="return_route" value="pending-comments">
-                            <input type="checkbox" onchange="this.form.submit()" title="标记完成">
+                            <?php if ($showDone): ?>
+                                <input type="hidden" name="return_status" value="done">
+                            <?php endif; ?>
+                            <input type="checkbox" onchange="this.form.submit()" <?= $showDone ? 'checked' : '' ?> title="<?= $showDone ? '标记为待办' : '标记完成' ?>">
                         </form>
+                        <span class="todo-date"><?= h(relative_day_label($comment['created_at'])) ?></span>
                         <span class="todo-text" title="<?= h($comment['content']) ?>"><?= h($comment['content']) ?></span>
                         <a class="todo-order"
                            href="/?route=post-view&id=<?= (int) $comment['post_id'] ?>"

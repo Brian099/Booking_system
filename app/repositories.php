@@ -503,19 +503,20 @@ function toggle_comment_done(int $commentId): void
     ]);
 }
 
-function list_pending_comments(): array
+function list_comments_by_status(bool $isDone): array
 {
-    $sql = '
+    $stmt = db()->prepare('
         SELECT c.*, p.content AS post_content, p.id AS post_id, u.display_name AS user_name, au.display_name AS post_author_name
         FROM post_comments c
         INNER JOIN posts p ON p.id = c.post_id
         INNER JOIN users u ON u.id = c.user_id
         INNER JOIN users au ON au.id = p.author_id
-        WHERE c.is_done = 0 AND p.deleted_at IS NULL
-        ORDER BY c.created_at ASC
-    ';
+        WHERE c.is_done = :is_done AND p.deleted_at IS NULL
+        ORDER BY c.created_at DESC, c.id DESC
+    ');
+    $stmt->execute(['is_done' => $isDone ? 1 : 0]);
 
-    return db()->query($sql)->fetchAll();
+    return $stmt->fetchAll();
 }
 
 function list_webhooks(): array
