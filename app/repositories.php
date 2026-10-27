@@ -503,18 +503,26 @@ function toggle_comment_done(int $commentId): void
     ]);
 }
 
-function list_comments_by_status(bool $isDone): array
+function list_comments_by_status(bool $isDone, string $keyword = ''): array
 {
+    $conditions = ['c.is_done = :is_done', 'p.deleted_at IS NULL'];
+    $params = ['is_done' => $isDone ? 1 : 0];
+
+    if (trim($keyword) !== '') {
+        $conditions[] = 'c.content LIKE :keyword';
+        $params['keyword'] = '%' . trim($keyword) . '%';
+    }
+
     $stmt = db()->prepare('
         SELECT c.*, p.content AS post_content, p.id AS post_id, u.display_name AS user_name, au.display_name AS post_author_name
         FROM post_comments c
         INNER JOIN posts p ON p.id = c.post_id
         INNER JOIN users u ON u.id = c.user_id
         INNER JOIN users au ON au.id = p.author_id
-        WHERE c.is_done = :is_done AND p.deleted_at IS NULL
+        WHERE ' . implode(' AND ', $conditions) . '
         ORDER BY c.created_at DESC, c.id DESC
     ');
-    $stmt->execute(['is_done' => $isDone ? 1 : 0]);
+    $stmt->execute($params);
 
     return $stmt->fetchAll();
 }

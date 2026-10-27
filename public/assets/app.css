@@ -1426,6 +1426,36 @@ button, input, select, textarea {
     box-shadow: var(--shadow-sm);
 }
 
+.todo-search-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.todo-search-form .form-control {
+    flex: 1;
+    min-width: 0;
+}
+
+.todo-search-form .btn-primary {
+    padding: 8px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.todo-search-clear {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.todo-search-clear:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
 .todo-row {
     display: flex;
     align-items: center;

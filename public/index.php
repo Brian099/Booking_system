@@ -1526,7 +1526,9 @@ if ($route === 'post-view') {
 // ==================== 所有标注汇总（待办 / 已办） ====================
 if ($route === 'pending-comments') {
     $showDone = ($_GET['status'] ?? '') === 'done';
-    $comments = list_comments_by_status($showDone);
+    $keyword = trim((string) ($_GET['keyword'] ?? ''));
+    $comments = list_comments_by_status($showDone, $keyword);
+    $keywordQuery = $keyword !== '' ? '&keyword=' . urlencode($keyword) : '';
 
     render_header('所有标注', $user);
     ?>
@@ -1534,14 +1536,26 @@ if ($route === 'pending-comments') {
         <div class="todo-panel-header">
             <h2 class="panel-title" style="margin: 0;">✅ 所有标注</h2>
             <div class="todo-tabs">
-                <a class="todo-tab <?= !$showDone ? 'active' : '' ?>" href="/?route=pending-comments">待办</a>
-                <a class="todo-tab <?= $showDone ? 'active' : '' ?>" href="/?route=pending-comments&status=done">已办</a>
+                <a class="todo-tab <?= !$showDone ? 'active' : '' ?>" href="/?route=pending-comments<?= h($keywordQuery) ?>">待办</a>
+                <a class="todo-tab <?= $showDone ? 'active' : '' ?>" href="/?route=pending-comments&status=done<?= h($keywordQuery) ?>">已办</a>
             </div>
         </div>
 
+        <form method="get" action="/" class="todo-search-form">
+            <input type="hidden" name="route" value="pending-comments">
+            <?php if ($showDone): ?>
+                <input type="hidden" name="status" value="done">
+            <?php endif; ?>
+            <input type="text" name="keyword" class="form-control" value="<?= h($keyword) ?>" placeholder="搜索标注内容...">
+            <button type="submit" class="btn-primary">搜索</button>
+            <?php if ($keyword !== ''): ?>
+                <a class="todo-search-clear" href="/?route=pending-comments<?= $showDone ? '&status=done' : '' ?>">清除</a>
+            <?php endif; ?>
+        </form>
+
         <div class="comment-section-box" style="border-top: none; padding-top: 0;">
             <?php if (!$comments): ?>
-                <div class="empty-placeholder"><?= $showDone ? '暂无已办标注' : '暂无待办标注' ?></div>
+                <div class="empty-placeholder"><?= $keyword !== '' ? '没有匹配的标注' : ($showDone ? '暂无已办标注' : '暂无待办标注') ?></div>
             <?php else: ?>
                 <?php foreach ($comments as $comment): ?>
                     <div class="todo-row <?= $showDone ? 'is-done' : '' ?>">
