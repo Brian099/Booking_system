@@ -623,6 +623,47 @@ function render_footer(): void
             }
         });
 
+        // 列表「加载更多」：请求下一页并追加到记录流
+        function loadMorePosts(btn) {
+            if (!btn || btn.dataset.loading === '1') return;
+            var stream = document.querySelector('.memos-stream');
+            if (!stream) return;
+
+            var page = parseInt(btn.dataset.page || '2', 10);
+            var params = new URLSearchParams(window.location.search);
+            var source = params.get('route') || 'posts';
+            params.set('route', 'posts-more');
+            params.set('source', source);
+            params.set('page', String(page));
+
+            btn.dataset.loading = '1';
+            btn.disabled = true;
+            var originalText = btn.textContent;
+            btn.textContent = '加载中…';
+
+            fetch('/?' + params.toString(), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (data.html) stream.insertAdjacentHTML('beforeend', data.html);
+                    if (data.has_more) {
+                        btn.dataset.page = String(page + 1);
+                        btn.dataset.loading = '';
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    } else {
+                        btn.remove();
+                    }
+                })
+                .catch(function () {
+                    btn.dataset.loading = '';
+                    btn.disabled = false;
+                    btn.textContent = '加载失败，点击重试';
+                });
+        }
+
         // 图片灯箱：在当前窗口内放大查看，支持同一 post 内多图翻页
         var lightboxImages = [];
         var lightboxIndex = 0;
@@ -782,7 +823,7 @@ function render_post_card(array $post, array $user): void
                 <div class="memo-image-gallery">
                     <?php foreach ($post['images'] as $image): ?>
                         <a class="memo-image-item" href="<?= h(image_url($image['file_path'])) ?>" title="<?= h($image['original_name']) ?>" onclick="return openLightbox(this, event)">
-                            <img src="<?= h(image_url($image['file_path'])) ?>" alt="<?= h($image['original_name']) ?>" loading="lazy">
+                            <img src="<?= h(thumb_url($image['file_path'])) ?>" alt="<?= h($image['original_name']) ?>" loading="lazy">
                         </a>
                     <?php endforeach; ?>
                 </div>
@@ -861,6 +902,37 @@ function render_post_card(array $post, array $user): void
         </form>
     </article>
     <?php
+}
+
+/**
+ * 列表中的一条记录（含回收站的恢复按钮），供首屏与「加载更多」复用。
+ */
+function render_post_list_item(array $post, array $user, string $route): void
+{
+    render_post_card($post, $user);
+    if ($route === 'recycle-bin') {
+        ?>
+        <div style="margin-top: -8px; margin-bottom: 16px; text-align: right;">
+            <form method="post" action="/?route=post-restore" style="display: inline;">
+                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="id" value="<?= (int) $post['id'] ?>">
+                <button class="btn-primary" type="submit" style="background: var(--success); font-size: 12px; padding: 4px 10px;">♻️ 恢复此记录</button>
+            </form>
+        </div>
+        <?php
+    }
+}
+
+function post_filters_from_request(): array
+{
+    return [
+        'keyword' => trim((string) ($_GET['keyword'] ?? '')),
+        'author_id' => (string) ($_GET['author_id'] ?? ''),
+        'date_from' => (string) ($_GET['date_from'] ?? ''),
+        'date_to' => (string) ($_GET['date_to'] ?? ''),
+        'tag_id' => (string) ($_GET['tag_id'] ?? ''),
+        'expected_ship_date' => (string) ($_GET['expected_ship_date'] ?? ''),
+    ];
 }
 
 if (!file_exists(app_config('db_path'))) {
@@ -1256,23 +1328,57 @@ if ($route === 'login') {
 
 $user = require_login();
 
+// ==================== 加载更多（AJAX 追加列表） ====================
+if ($route === 'posts-more') {
+    $source = (string) ($_GET['source'] ?? 'posts');
+    if (!in_array($source, ['posts', 'my-posts', 'recycle-bin'], true)) {
+        $source = 'posts';
+    }
+
+    $filters = post_filters_from_request();
+    $pageSize = 20;
+    $page = max(2, (int) ($_GET['page'] ?? 2));
+
+    $posts = list_posts(
+        $filters,
+        $source === 'my-posts' ? 'mine' : 'all',
+        (int) $user['id'],
+        $source === 'recycle-bin',
+        $pageSize + 1,
+        ($page - 1) * $pageSize
+    );
+    $hasMore = count($posts) > $pageSize;
+    if ($hasMore) {
+        $posts = array_slice($posts, 0, $pageSize);
+    }
+
+    ob_start();
+    foreach ($posts as $post) {
+        render_post_list_item($post, $user, $source);
+    }
+    $html = (string) ob_get_clean();
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['html' => $html, 'has_more' => $hasMore], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ==================== 主列表视图 (Memos 样式 Feed 流) ====================
 if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
-    $filters = [
-        'keyword' => trim((string) ($_GET['keyword'] ?? '')),
-        'author_id' => (string) ($_GET['author_id'] ?? ''),
-        'date_from' => (string) ($_GET['date_from'] ?? ''),
-        'date_to' => (string) ($_GET['date_to'] ?? ''),
-        'tag_id' => (string) ($_GET['tag_id'] ?? ''),
-        'expected_ship_date' => (string) ($_GET['expected_ship_date'] ?? ''),
-    ];
+    $filters = post_filters_from_request();
+    $pageSize = 20;
 
     $posts = list_posts(
         $filters,
         $route === 'my-posts' ? 'mine' : 'all',
         (int) $user['id'],
-        $route === 'recycle-bin'
+        $route === 'recycle-bin',
+        $pageSize + 1
     );
+    $hasMore = count($posts) > $pageSize;
+    if ($hasMore) {
+        $posts = array_slice($posts, 0, $pageSize);
+    }
     $allTags = list_tags();
 
     $title = $route === 'my-posts' ? '我的记录' : ($route === 'recycle-bin' ? '回收站' : '订货时间流');
@@ -1365,19 +1471,16 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
             </div>
         <?php else: ?>
             <?php foreach ($posts as $post): ?>
-                <?php render_post_card($post, $user); ?>
-                <?php if ($route === 'recycle-bin'): ?>
-                    <div style="margin-top: -8px; margin-bottom: 16px; text-align: right;">
-                        <form method="post" action="/?route=post-restore" style="display: inline;">
-                            <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
-                            <input type="hidden" name="id" value="<?= (int) $post['id'] ?>">
-                            <button class="btn-primary" type="submit" style="background: var(--success); font-size: 12px; padding: 4px 10px;">♻️ 恢复此记录</button>
-                        </form>
-                    </div>
-                <?php endif; ?>
+                <?php render_post_list_item($post, $user, $route); ?>
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
+
+    <?php if ($hasMore): ?>
+        <div class="load-more-box">
+            <button type="button" class="load-more-btn" id="load-more-btn" data-page="2" onclick="loadMorePosts(this)">加载更多</button>
+        </div>
+    <?php endif; ?>
 
     <?php
     render_footer();

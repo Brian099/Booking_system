@@ -297,6 +297,12 @@ function store_uploaded_images(array $fileInput): array
         }
 
         $relativePath = date('Y/m') . '/' . $filename;
+        $thumbFolder = $targetFolder . '/thumbs';
+        if (!is_dir($thumbFolder)) {
+            mkdir($thumbFolder, 0775, true);
+        }
+        create_image_thumbnail($destination, $thumbFolder . '/' . pathinfo($filename, PATHINFO_FILENAME) . '.jpg');
+
         $saved[] = [
             'file_path' => $relativePath,
             'original_name' => (string) $originalName,
@@ -304,6 +310,65 @@ function store_uploaded_images(array $fileInput): array
     }
 
     return $saved;
+}
+
+/**
+ * 生成列表用的缩略图；原图小于目标宽度或环境不支持 GD 时跳过。
+ */
+function create_image_thumbnail(string $sourcePath, string $targetPath, int $maxWidth = 640): bool
+{
+    if (!function_exists('imagecreatefromstring') || !function_exists('imagecopyresampled')) {
+        return false;
+    }
+
+    $data = @file_get_contents($sourcePath);
+    if ($data === false) {
+        return false;
+    }
+
+    $image = @imagecreatefromstring($data);
+    if (!$image) {
+        return false;
+    }
+
+    $width = imagesx($image);
+    $height = imagesy($image);
+    if ($width <= $maxWidth) {
+        imagedestroy($image);
+        return false;
+    }
+
+    $newWidth = $maxWidth;
+    $newHeight = max(1, (int) round($height * $maxWidth / $width));
+
+    $canvas = imagecreatetruecolor($newWidth, $newHeight);
+    $white = imagecolorallocate($canvas, 255, 255, 255);
+    imagefill($canvas, 0, 0, $white);
+    imagecopyresampled($canvas, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+    $created = @imagejpeg($canvas, $targetPath, 82);
+
+    imagedestroy($canvas);
+    imagedestroy($image);
+
+    return $created !== false;
+}
+
+function thumb_relative_path(string $relativePath): string
+{
+    $dir = dirname($relativePath);
+    $name = pathinfo($relativePath, PATHINFO_FILENAME);
+    $thumbName = 'thumbs/' . $name . '.jpg';
+
+    return $dir === '.' ? $thumbName : $dir . '/' . $thumbName;
+}
+
+function thumb_url(string $relativePath): string
+{
+    $thumbPath = thumb_relative_path($relativePath);
+    $absolutePath = app_config('upload_dir') . '/' . ltrim($thumbPath, '/');
+
+    return is_file($absolutePath) ? image_url($thumbPath) : image_url($relativePath);
 }
 
 function image_url(string $relativePath): string

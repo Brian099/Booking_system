@@ -846,6 +846,33 @@ button, input, select, textarea {
     gap: 16px;
 }
 
+.load-more-box {
+    display: flex;
+    justify-content: center;
+    margin: 18px 0 28px;
+}
+
+.load-more-btn {
+    padding: 9px 28px;
+    font-size: 13.5px;
+    color: var(--text-main);
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.load-more-btn:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.load-more-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 .memo-card {
     background: var(--bg-card);
     border: 1px solid var(--border-color);

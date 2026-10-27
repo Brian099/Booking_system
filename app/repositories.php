@@ -306,7 +306,7 @@ function get_post_comments(int $postId): array
     return $stmt->fetchAll();
 }
 
-function list_posts(array $filters, string $scope, int $currentUserId, bool $includeDeleted = false): array
+function list_posts(array $filters, string $scope, int $currentUserId, bool $includeDeleted = false, int $limit = 0, int $offset = 0): array
 {
     $conditions = [];
     $params = [];
@@ -379,18 +379,99 @@ function list_posts(array $filters, string $scope, int $currentUserId, bool $inc
 
     $sql .= ' ORDER BY p.updated_at DESC, p.id DESC';
 
+    if ($limit > 0) {
+        $sql .= ' LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
+    }
+
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $posts = $stmt->fetchAll();
 
+    $postIds = array_map('intval', array_column($posts, 'id'));
+    $imagesMap = get_images_for_posts($postIds);
+    $tagsMap = get_tags_for_posts($postIds);
+    $commentsMap = get_comments_for_posts($postIds);
+
     foreach ($posts as &$post) {
-        $post['images'] = get_post_images((int) $post['id']);
-        $post['tags'] = get_post_tags((int) $post['id']);
-        $post['comments'] = get_post_comments((int) $post['id']);
+        $postId = (int) $post['id'];
+        $post['images'] = $imagesMap[$postId] ?? [];
+        $post['tags'] = $tagsMap[$postId] ?? [];
+        $post['comments'] = $commentsMap[$postId] ?? [];
         $post['comment_count'] = count($post['comments']);
     }
+    unset($post);
 
     return $posts;
+}
+
+/**
+ * 批量取多个 Post 的图片，避免列表页逐条查询（N+1）。
+ */
+function get_images_for_posts(array $postIds): array
+{
+    if (!$postIds) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+    $stmt = db()->prepare("SELECT * FROM post_images WHERE post_id IN ($placeholders) ORDER BY sort_order ASC, id ASC");
+    $stmt->execute($postIds);
+
+    $result = [];
+    foreach ($stmt->fetchAll() as $image) {
+        $result[(int) $image['post_id']][] = $image;
+    }
+
+    return $result;
+}
+
+function get_tags_for_posts(array $postIds): array
+{
+    if (!$postIds) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+    $stmt = db()->prepare(
+        "SELECT pt.post_id, t.*, pt.tagged_by_user_id, u.display_name AS tagged_by_name
+         FROM post_tags pt
+         INNER JOIN tags t ON t.id = pt.tag_id
+         LEFT JOIN users u ON u.id = pt.tagged_by_user_id
+         WHERE pt.post_id IN ($placeholders)
+         ORDER BY t.sort_order ASC, t.id ASC"
+    );
+    $stmt->execute($postIds);
+
+    $result = [];
+    foreach ($stmt->fetchAll() as $tag) {
+        $result[(int) $tag['post_id']][] = $tag;
+    }
+
+    return $result;
+}
+
+function get_comments_for_posts(array $postIds): array
+{
+    if (!$postIds) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+    $stmt = db()->prepare(
+        "SELECT c.*, u.display_name AS user_name
+         FROM post_comments c
+         INNER JOIN users u ON u.id = c.user_id
+         WHERE c.post_id IN ($placeholders)
+         ORDER BY c.created_at ASC, c.id ASC"
+    );
+    $stmt->execute($postIds);
+
+    $result = [];
+    foreach ($stmt->fetchAll() as $comment) {
+        $result[(int) $comment['post_id']][] = $comment;
+    }
+
+    return $result;
 }
 
 function count_post_comments(int $postId): int
