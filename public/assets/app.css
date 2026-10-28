@@ -1416,7 +1416,9 @@ button, input, select, textarea {
     flex: 1;
 }
 
-/* 所有标注：一条待办一行，关联订货单靠右 */
+/* 所有标注：一条待办两行显示
+   第一行：勾选框 + 日期 + 标注内容
+   第二行：关联订货单（左对齐，与左侧日期「某一天」起始位置对齐） */
 .todo-panel-header {
     display: flex;
     align-items: center;
@@ -1484,9 +1486,11 @@ button, input, select, textarea {
 }
 
 .todo-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
     align-items: center;
-    gap: 10px;
+    column-gap: 10px;
+    row-gap: 4px;
     padding: 10px 12px;
     font-size: 14px;
     background: #ffffff;
@@ -1500,6 +1504,8 @@ button, input, select, textarea {
 }
 
 .todo-row form {
+    grid-column: 1;
+    grid-row: 1;
     display: flex;
     flex-shrink: 0;
     margin: 0;
@@ -1514,6 +1520,9 @@ button, input, select, textarea {
 }
 
 .todo-date {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
     flex-shrink: 0;
     padding: 2px 8px;
     font-size: 11px;
@@ -1524,7 +1533,9 @@ button, input, select, textarea {
 }
 
 .todo-text {
-    flex: 0 1 auto;
+    grid-column: 3;
+    grid-row: 1;
+    flex: 1 1 0;
     min-width: 0;
     font-weight: 500;
     color: var(--text-main);
@@ -1534,9 +1545,12 @@ button, input, select, textarea {
 }
 
 .todo-order {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    justify-self: start;
     flex: 0 1 auto;
     min-width: 0;
-    max-width: 45%;
+    max-width: 100%;
     font-size: 12px;
     color: var(--text-muted);
     text-decoration: none;
@@ -1740,8 +1754,9 @@ button, input, select, textarea {
 
 @media (max-width: 640px) {
     .todo-row {
-        flex-wrap: wrap;
+        /* 仍用两行网格，保证关联订货单与左侧日期对齐 */
         align-items: flex-start;
+        row-gap: 4px;
     }
 
     .todo-row form {
@@ -1749,7 +1764,6 @@ button, input, select, textarea {
     }
 
     .todo-text {
-        flex: 1 1 0;
         white-space: normal;
         word-break: break-word;
         display: -webkit-box;
@@ -1759,7 +1773,6 @@ button, input, select, textarea {
     }
 
     .todo-order {
-        flex: 1 1 100%;
         max-width: 100%;
         text-align: left;
     }
