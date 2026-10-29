@@ -1671,12 +1671,13 @@ if ($route === 'pending-comments') {
                             <?php endif; ?>
                             <input type="checkbox" onchange="this.form.submit()" <?= $showDone ? 'checked' : '' ?> title="<?= $showDone ? '标记为待办' : '标记完成' ?>">
                         </form>
-                        <span class="todo-date"><?= h(relative_day_label($comment['created_at'])) ?></span>
-                        <span class="todo-text" title="<?= h($comment['content']) ?>"><?= h($comment['content']) ?></span>
+                        <div class="todo-main">
+                            <span class="todo-date"><?= h(relative_day_label($comment['created_at'])) ?></span><span class="todo-text" title="<?= h($comment['content']) ?>"><?= h($comment['content']) ?></span>
+                        </div>
                         <a class="todo-order"
                            href="/?route=post-view&id=<?= (int) $comment['post_id'] ?>"
                            title="关联订货单 #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>">
-                            #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>
+                            #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)
                         </a>
                     </div>
                 <?php endforeach; ?>

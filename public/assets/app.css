@@ -1416,9 +1416,10 @@ button, input, select, textarea {
     flex: 1;
 }
 
-/* 所有标注：一条待办两行显示
-   第一行：勾选框 + 日期 + 标注内容
-   第二行：关联订货单（左对齐，与左侧日期「某一天」起始位置对齐） */
+/* 所有标注：PC 单行显示（勾选框 + 日期 + 标注内容 + 关联订货单编号）
+   日期在标注内容容器内、与文字同一行，文字换行后回落到日期左边缘
+   关联订货单只显示「#编号 (提交人)」，把宽度尽量留给标注内容
+   手机端为两行：第一行勾选框 + 日期与标注内容，第二行关联订货单（与日期左对齐） */
 .todo-panel-header {
     display: flex;
     align-items: center;
@@ -1486,11 +1487,9 @@ button, input, select, textarea {
 }
 
 .todo-row {
-    display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    display: flex;
     align-items: center;
-    column-gap: 10px;
-    row-gap: 4px;
+    gap: 10px;
     padding: 10px 12px;
     font-size: 14px;
     background: #ffffff;
@@ -1504,8 +1503,6 @@ button, input, select, textarea {
 }
 
 .todo-row form {
-    grid-column: 1;
-    grid-row: 1;
     display: flex;
     flex-shrink: 0;
     margin: 0;
@@ -1519,22 +1516,9 @@ button, input, select, textarea {
     accent-color: var(--primary);
 }
 
-.todo-date {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: start;
-    flex-shrink: 0;
-    padding: 2px 8px;
-    font-size: 11px;
-    color: var(--text-subtle);
-    background: #f1f5f9;
-    border-radius: 10px;
-    white-space: nowrap;
-}
-
-.todo-text {
-    grid-column: 3;
-    grid-row: 1;
+/* 所有标注：日期是标注内容容器内的行内元素，文字紧接日期之后
+   PC 端整行单行显示，超出省略；手机端标注内容可换行，换行后回到日期左边缘对齐 */
+.todo-main {
     flex: 1 1 0;
     min-width: 0;
     font-weight: 500;
@@ -1544,13 +1528,26 @@ button, input, select, textarea {
     text-overflow: ellipsis;
 }
 
+.todo-date {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text-subtle);
+    background: #f1f5f9;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.todo-text {
+    /* 行内元素：与日期同处一行，换行时对齐容器（=日期）左边缘 */
+}
+
 .todo-order {
-    grid-column: 2 / -1;
-    grid-row: 2;
-    justify-self: start;
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
-    max-width: 100%;
+    max-width: 45%;
     font-size: 12px;
     color: var(--text-muted);
     text-decoration: none;
@@ -1754,25 +1751,32 @@ button, input, select, textarea {
 
 @media (max-width: 640px) {
     .todo-row {
-        /* 仍用两行网格，保证关联订货单与左侧日期对齐 */
+        /* 手机端两行网格：勾选框 + 标注内容（日期行内）/ 关联订货单
+           标注内容换行后回落到日期左边缘，关联订货单也与之对齐 */
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
         align-items: flex-start;
+        column-gap: 10px;
         row-gap: 4px;
     }
 
     .todo-row form {
+        grid-column: 1;
+        grid-row: 1;
         margin-top: 3px;
     }
 
-    .todo-text {
+    .todo-main {
+        grid-column: 2;
+        grid-row: 1;
         white-space: normal;
         word-break: break-word;
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
     }
 
     .todo-order {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: start;
         max-width: 100%;
         text-align: left;
     }
