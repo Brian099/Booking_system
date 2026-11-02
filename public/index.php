@@ -168,7 +168,7 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     </a>
                     <form method="post" action="/?route=logout">
                         <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
-                        <button class="logout-btn" type="submit" title="退出登录">🚪</button>
+                        <button class="logout-btn" type="submit" title="退出登录">退出</button>
                     </form>
                 </div>
             <?php endif; ?>
