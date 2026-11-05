@@ -1727,14 +1727,12 @@ if ($route === 'pending-comments') {
             <?php if ($showDone): ?>
                 <input type="hidden" name="status" value="done">
             <?php endif; ?>
-            <input type="text" name="keyword" class="form-control" value="<?= h($keyword) ?>" placeholder="搜索标注内容...">
+            <input type="text" name="keyword" id="todo-search-input" class="form-control" value="<?= h($keyword) ?>" placeholder="搜索标注内容（输入即筛选）..." autocomplete="off">
             <button type="submit" class="btn-primary">搜索</button>
-            <?php if ($keyword !== ''): ?>
-                <a class="todo-search-clear" href="/?route=pending-comments<?= $showDone ? '&status=done' : '' ?>">清除</a>
-            <?php endif; ?>
+            <a class="todo-search-clear" id="todo-search-clear" href="/?route=pending-comments<?= $showDone ? '&status=done' : '' ?>" style="<?= $keyword !== '' ? '' : 'display: none;' ?>" data-server-keyword="<?= $keyword !== '' ? '1' : '0' ?>">清除</a>
         </form>
 
-        <div class="comment-section-box" style="border-top: none; padding-top: 0;">
+        <div class="comment-section-box" id="todo-list" style="border-top: none; padding-top: 0;">
             <?php if (!$comments): ?>
                 <div class="empty-placeholder"><?= $keyword !== '' ? '没有匹配的标注' : ($showDone ? '暂无已办标注' : '暂无待办标注') ?></div>
             <?php else: ?>
@@ -1759,9 +1757,69 @@ if ($route === 'pending-comments') {
                         </a>
                     </div>
                 <?php endforeach; ?>
+                <div class="empty-placeholder" id="todo-filter-empty" style="display: none;">没有匹配的标注</div>
             <?php endif; ?>
         </div>
     </div>
+    <script>
+        (function () {
+            var input = document.getElementById('todo-search-input');
+            var list = document.getElementById('todo-list');
+            var clear = document.getElementById('todo-search-clear');
+            var empty = document.getElementById('todo-filter-empty');
+            if (!input || !list) {
+                return;
+            }
+
+            var rows = Array.prototype.slice.call(list.querySelectorAll('.todo-row'));
+            var haystacks = rows.map(function (row) {
+                var textEl = row.querySelector('.todo-text');
+                var text = textEl ? (textEl.getAttribute('title') || textEl.textContent || '') : (row.textContent || '');
+                return text.toLowerCase();
+            });
+
+            function applyFilter() {
+                var terms = input.value.trim().toLowerCase().split(/\s+/).filter(function (term) {
+                    return term !== '';
+                });
+                var visible = 0;
+
+                rows.forEach(function (row, index) {
+                    var matched = terms.every(function (term) {
+                        return haystacks[index].indexOf(term) !== -1;
+                    });
+                    row.style.display = matched ? '' : 'none';
+                    if (matched) {
+                        visible++;
+                    }
+                });
+
+                if (empty) {
+                    empty.style.display = (rows.length > 0 && visible === 0) ? '' : 'none';
+                }
+                if (clear) {
+                    clear.style.display = (terms.length > 0 || clear.dataset.serverKeyword === '1') ? '' : 'none';
+                }
+            }
+
+            input.addEventListener('input', applyFilter);
+            input.addEventListener('search', applyFilter);
+
+            if (clear) {
+                clear.addEventListener('click', function (event) {
+                    if (clear.dataset.serverKeyword === '1') {
+                        return; // 服务端已有筛选，走链接跳转清除
+                    }
+                    event.preventDefault();
+                    input.value = '';
+                    applyFilter();
+                    input.focus();
+                });
+            }
+
+            applyFilter();
+        })();
+    </script>
     <?php
     render_footer();
     exit;
