@@ -64,6 +64,21 @@ function update_user_profile(int $id, string $displayName, ?string $newPassword 
     }
 }
 
+function update_user_role(int $id, string $role): void
+{
+    $stmt = db()->prepare('UPDATE users SET role = :role, updated_at = :updated_at WHERE id = :id');
+    $stmt->execute([
+        'id' => $id,
+        'role' => $role === 'admin' ? 'admin' : 'user',
+        'updated_at' => now(),
+    ]);
+}
+
+function count_admin_users(): int
+{
+    return (int) (db()->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() ?: 0);
+}
+
 function list_tags(bool $onlyActive = true): array
 {
     $sql = 'SELECT * FROM tags';
@@ -353,7 +368,17 @@ function list_posts(array $filters, string $scope, int $currentUserId, bool $inc
     }
 
     if (!empty($filters['tag_id'])) {
-        if ($filters['tag_id'] === 'untagged' || $filters['tag_id'] === 'none' || (int) $filters['tag_id'] === -1) {
+        if ($filters['tag_id'] === 'pending') {
+            // 待处理记录：既没有标签、也没有注释
+            $conditions[] = 'NOT EXISTS (
+                SELECT 1 FROM post_tags pt
+                WHERE pt.post_id = p.id
+            )';
+            $conditions[] = 'NOT EXISTS (
+                SELECT 1 FROM post_comments pc
+                WHERE pc.post_id = p.id
+            )';
+        } elseif ($filters['tag_id'] === 'untagged' || $filters['tag_id'] === 'none' || (int) $filters['tag_id'] === -1) {
             $conditions[] = 'NOT EXISTS (
                 SELECT 1 FROM post_tags pt
                 WHERE pt.post_id = p.id
@@ -700,17 +725,51 @@ function list_tags_with_counts(bool $onlyActive = true): array
     return db()->query($sql)->fetchAll();
 }
 
-function count_untagged_posts(): int
+function count_untagged_posts(string $scope = 'all', int $currentUserId = 0): int
 {
-    $sql = '
-        SELECT COUNT(*) AS count
-        FROM posts p
-        WHERE p.deleted_at IS NULL
-        AND NOT EXISTS (
+    $conditions = [
+        'p.deleted_at IS NULL',
+        'NOT EXISTS (
             SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id
-        )
-    ';
-    return (int) (db()->query($sql)->fetchColumn() ?: 0);
+        )',
+    ];
+    $params = [];
+
+    if ($scope === 'mine' && $currentUserId > 0) {
+        $conditions[] = 'p.author_id = :author_id';
+        $params['author_id'] = $currentUserId;
+    }
+
+    $sql = 'SELECT COUNT(*) AS count FROM posts p WHERE ' . implode(' AND ', $conditions);
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+function count_pending_posts(string $scope = 'all', int $currentUserId = 0): int
+{
+    $conditions = [
+        'p.deleted_at IS NULL',
+        'NOT EXISTS (
+            SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id
+        )',
+        'NOT EXISTS (
+            SELECT 1 FROM post_comments pc WHERE pc.post_id = p.id
+        )',
+    ];
+    $params = [];
+
+    if ($scope === 'mine' && $currentUserId > 0) {
+        $conditions[] = 'p.author_id = :author_id';
+        $params['author_id'] = $currentUserId;
+    }
+
+    $sql = 'SELECT COUNT(*) AS count FROM posts p WHERE ' . implode(' AND ', $conditions);
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+
+    return (int) ($stmt->fetchColumn() ?: 0);
 }
 
 function get_active_post_dates(string $yearMonth, string $scope = 'all', int $currentUserId = 0): array

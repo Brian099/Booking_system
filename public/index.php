@@ -7,7 +7,10 @@ require dirname(__DIR__) . '/bootstrap.php';
 function render_memos_sidebar(?array $user, array $queryParams): void
 {
     $activeRoute = route_name();
-    $filterRoute = in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true) ? $activeRoute : 'posts';
+    $isAdminViewer = is_admin();
+    $filterRoute = in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)
+        ? $activeRoute
+        : ($isAdminViewer ? 'posts' : 'my-posts');
     $currentKeyword = (string) ($queryParams['keyword'] ?? '');
     $selectedTag = (string) ($queryParams['tag_id'] ?? '');
     $isUntaggedSelected = in_array($selectedTag, ['untagged', '-1', 'none'], true);
@@ -27,10 +30,12 @@ function render_memos_sidebar(?array $user, array $queryParams): void
     $nextYm = date('Y-m', strtotime('+1 month', $calTime));
     $currentYearMonthText = date('Y年n月', $calTime);
 
-    $scope = $filterRoute === 'my-posts' ? 'mine' : 'all';
+    $scope = ($filterRoute === 'my-posts' || ($filterRoute === 'recycle-bin' && !$isAdminViewer)) ? 'mine' : 'all';
     $activeDays = get_active_post_dates($calYm, $scope, (int) ($user['id'] ?? 0));
     $tags = list_tags_with_counts(true);
-    $untaggedCount = count_untagged_posts();
+    $untaggedCount = count_untagged_posts($scope, (int) ($user['id'] ?? 0));
+    $isPendingSelected = $selectedTag === 'pending';
+    $pendingCount = count_pending_posts($scope, (int) ($user['id'] ?? 0));
 
     // 计算日历网格
     $firstDayOfWeek = (int) date('w', $calTime); // 0 (Sunday) to 6 (Saturday)
@@ -110,16 +115,26 @@ function render_memos_sidebar(?array $user, array $queryParams): void
         <div class="sidebar-collapsible" id="sidebar-collapsible">
             <!-- 导航菜单 -->
             <nav class="sidebar-menu">
-                <a class="nav-item <?= $activeRoute === 'posts' ? 'active' : '' ?>" href="/?route=posts">
-                    <span class="icon">📋</span> 全部记录
-                </a>
-                <a class="nav-item <?= $activeRoute === 'my-posts' ? 'active' : '' ?>" href="/?route=my-posts">
+                <?php if ($isAdminViewer): ?>
+                    <a class="nav-item <?= ($activeRoute === 'posts' && !$isPendingSelected) ? 'active' : '' ?>" href="/?route=posts">
+                        <span class="icon">📋</span> 全部记录
+                    </a>
+                <?php endif; ?>
+                <a class="nav-item <?= ($activeRoute === 'my-posts' && !$isPendingSelected) ? 'active' : '' ?>" href="/?route=my-posts">
                     <span class="icon">👤</span> 我的记录
                 </a>
-                <a class="nav-item <?= $activeRoute === 'pending-comments' ? 'active' : '' ?>" href="/?route=pending-comments">
-                    <span class="icon">✅</span> 所有标注
+                <a class="nav-item <?= ($activeRoute === $filterRoute && $isPendingSelected) ? 'active' : '' ?>" href="/?route=<?= h($isAdminViewer ? 'posts' : 'my-posts') ?>&tag_id=pending" title="既没有标签、也没有注释的记录">
+                    <span class="icon">🕒</span> 待处理记录
+                    <?php if ($pendingCount > 0): ?>
+                        <span class="tag-badge" style="margin-left: auto;"><?= $pendingCount ?></span>
+                    <?php endif; ?>
                 </a>
-                <a class="nav-item <?= $activeRoute === 'recycle-bin' ? 'active' : '' ?>" href="/?route=recycle-bin">
+                <?php if ($isAdminViewer): ?>
+                    <a class="nav-item <?= $activeRoute === 'pending-comments' ? 'active' : '' ?>" href="/?route=pending-comments">
+                        <span class="icon">✅</span> 所有标注
+                    </a>
+                <?php endif; ?>
+                <a class="nav-item <?= ($activeRoute === 'recycle-bin' && !$isPendingSelected) ? 'active' : '' ?>" href="/?route=recycle-bin">
                     <span class="icon">🗑️</span> 回收站
                 </a>
             </nav>
@@ -964,7 +979,7 @@ if ($route === 'login' && is_post_request()) {
 
     login_user($user);
     flash('success', '登录成功');
-    redirect('/?route=posts');
+    redirect('/?route=' . (($user['role'] ?? 'user') === 'admin' ? 'posts' : 'my-posts'));
 }
 
 if ($route === 'logout' && is_post_request()) {
@@ -978,6 +993,20 @@ $user = current_user();
 
 if (!$user && $route !== 'login') {
     redirect('/?route=login');
+}
+
+// 分类权限：管理员可看「全部记录」「所有标注」；普通用户只能看自己的记录
+if ($user && !is_admin()) {
+    if ($route === 'posts') {
+        $query = $_GET;
+        $query['route'] = 'my-posts';
+        redirect('/?' . http_build_query($query));
+    }
+
+    if ($route === 'pending-comments') {
+        flash('error', '「所有标注」仅管理员可查看');
+        redirect('/?route=my-posts');
+    }
 }
 
 if ($route === 'user-save' && is_post_request()) {
@@ -1000,6 +1029,44 @@ if ($route === 'user-save' && is_post_request()) {
 
     create_user($username, $password, $displayName, $role);
     flash('success', '用户创建成功');
+    redirect('/?route=settings&tab=users');
+}
+
+if ($route === 'user-role' && is_post_request()) {
+    require_admin();
+    verify_csrf();
+    $targetId = (int) ($_POST['user_id'] ?? 0);
+    $newRole = (string) ($_POST['role'] ?? '');
+    $target = $targetId > 0 ? find_user_by_id($targetId) : null;
+
+    if (!$target) {
+        flash('error', '用户不存在');
+        redirect('/?route=settings&tab=users');
+    }
+
+    if (!in_array($newRole, ['admin', 'user'], true)) {
+        flash('error', '无效的角色');
+        redirect('/?route=settings&tab=users');
+    }
+
+    if ($target['role'] === $newRole) {
+        flash('success', '角色未发生变化');
+        redirect('/?route=settings&tab=users');
+    }
+
+    if ($target['role'] === 'admin' && $newRole === 'user' && count_admin_users() <= 1) {
+        flash('error', '系统至少需要保留一名管理员，无法取消最后一位管理员');
+        redirect('/?route=settings&tab=users');
+    }
+
+    update_user_role($targetId, $newRole);
+    $roleLabel = $newRole === 'admin' ? '系统管理员' : '普通用户（订货员）';
+    flash('success', '已将「' . $target['display_name'] . '」的角色改为' . $roleLabel);
+
+    if ($targetId === (int) $user['id'] && $newRole !== 'admin') {
+        redirect('/?route=settings&tab=profile');
+    }
+
     redirect('/?route=settings&tab=users');
 }
 
@@ -1334,6 +1401,9 @@ if ($route === 'posts-more') {
     if (!in_array($source, ['posts', 'my-posts', 'recycle-bin'], true)) {
         $source = 'posts';
     }
+    if ($source === 'posts' && !is_admin()) {
+        $source = 'my-posts';
+    }
 
     $filters = post_filters_from_request();
     $pageSize = 20;
@@ -1341,7 +1411,7 @@ if ($route === 'posts-more') {
 
     $posts = list_posts(
         $filters,
-        $source === 'my-posts' ? 'mine' : 'all',
+        ($source === 'my-posts' || ($source === 'recycle-bin' && !is_admin())) ? 'mine' : 'all',
         (int) $user['id'],
         $source === 'recycle-bin',
         $pageSize + 1,
@@ -1370,7 +1440,7 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
 
     $posts = list_posts(
         $filters,
-        $route === 'my-posts' ? 'mine' : 'all',
+        ($route === 'my-posts' || ($route === 'recycle-bin' && !is_admin())) ? 'mine' : 'all',
         (int) $user['id'],
         $route === 'recycle-bin',
         $pageSize + 1
@@ -1396,7 +1466,9 @@ if ($route === 'posts' || $route === 'my-posts' || $route === 'recycle-bin') {
                 <?php if (!empty($filters['tag_id'])): ?>
                     <?php
                     $activeTagName = '';
-                    if (in_array($filters['tag_id'], ['untagged', '-1', 'none'], true)) {
+                    if ($filters['tag_id'] === 'pending') {
+                        $activeTagName = '待处理记录（无标签且无注释）';
+                    } elseif (in_array($filters['tag_id'], ['untagged', '-1', 'none'], true)) {
                         $activeTagName = '无标签';
                     } else {
                         foreach ($allTags as $t) { if ((int)$t['id'] === (int)$filters['tag_id']) { $activeTagName = $t['name']; break; } }
@@ -1556,6 +1628,12 @@ if ($route === 'post-view') {
     if (!$post) {
         flash('error', '订货记录不存在或已删除');
         redirect('/?route=posts');
+    }
+
+    // 普通用户只能查看自己的记录
+    if ((int) $post['author_id'] !== (int) $user['id'] && !is_admin()) {
+        flash('error', '无权查看该订货记录');
+        redirect('/?route=my-posts');
     }
 
     $post['images'] = get_post_images($postId);
@@ -1779,31 +1857,35 @@ if ($route === 'settings') {
 
     <?php elseif ($currentTab === 'users' && is_admin()): ?>
         <?php $users = list_users(); ?>
-        <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 20px;">
+        <div>
             <div class="panel-card">
                 <h3 class="panel-title">➕ 新增用户</h3>
-                <form method="post" action="/?route=user-save">
+                <form method="post" action="/?route=user-save" class="user-create-form">
                     <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
                     <div class="form-group">
-                        <label>用户名 (登录账号)</label>
-                        <input type="text" name="username" class="form-control" required>
+                        <label>用户名（登录账号）</label>
+                        <input type="text" name="username" class="form-control" placeholder="如：zhangwei" required>
                     </div>
                     <div class="form-group">
                         <label>显示姓名</label>
-                        <input type="text" name="display_name" class="form-control" required>
+                        <input type="text" name="display_name" class="form-control" placeholder="如：张伟" required>
                     </div>
                     <div class="form-group">
                         <label>初始密码</label>
-                        <input type="password" name="password" class="form-control" required>
+                        <input type="password" name="password" class="form-control" placeholder="创建后可由用户自行修改" required>
                     </div>
                     <div class="form-group">
                         <label>角色权限</label>
                         <select name="role" class="form-control">
-                            <option value="user">普通用户 (订货员)</option>
+                            <option value="user">普通用户（订货员）</option>
                             <option value="admin">系统管理员</option>
                         </select>
+                        <div class="form-hint">管理员可管理标签、用户与 Webhook；普通用户仅能维护自己的记录</div>
                     </div>
-                    <button class="btn-primary" type="submit" style="margin-top: 10px; width: 100%;">创建用户</button>
+                    <div class="form-actions">
+                        <span class="form-hint">创建后可在下方用户列表更改角色</span>
+                        <button class="btn-primary" type="submit">创建用户</button>
+                    </div>
                 </form>
             </div>
 
@@ -1817,6 +1899,7 @@ if ($route === 'settings') {
                         <th>显示名</th>
                         <th>角色</th>
                         <th>注册时间</th>
+                        <th>更改角色</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -1831,6 +1914,17 @@ if ($route === 'settings') {
                                 </span>
                             </td>
                             <td><?= h(date('Y-m-d', strtotime($item['created_at']))) ?></td>
+                            <td>
+                                <form method="post" action="/?route=user-role" style="display: flex; align-items: center; gap: 6px; margin: 0;">
+                                    <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                                    <input type="hidden" name="user_id" value="<?= (int) $item['id'] ?>">
+                                    <select name="role" class="form-control" style="padding: 4px 8px; font-size: 12px; width: auto;">
+                                        <option value="user" <?= $item['role'] === 'user' ? 'selected' : '' ?>>普通用户</option>
+                                        <option value="admin" <?= $item['role'] === 'admin' ? 'selected' : '' ?>>管理员</option>
+                                    </select>
+                                    <button class="btn-primary" type="submit" style="padding: 4px 10px; font-size: 12px; white-space: nowrap;">保存</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

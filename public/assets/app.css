@@ -1597,6 +1597,32 @@ button, input, select, textarea {
     color: var(--text-muted);
 }
 
+/* 新增用户卡片：字段两列排布，操作按钮独立一行靠右 */
+.user-create-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 18px;
+    max-width: 760px;
+}
+
+.user-create-form .form-group {
+    margin-bottom: 0;
+}
+
+.user-create-form .form-hint {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-subtle);
+}
+
+.user-create-form .form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
 .form-control {
     width: 100%;
     padding: 8px 12px;
@@ -1794,5 +1820,20 @@ button, input, select, textarea {
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 2;
         line-clamp: 2;
+    }
+
+    .user-create-form {
+        grid-template-columns: 1fr;
+        max-width: none;
+    }
+
+    .user-create-form .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .user-create-form .form-actions .form-hint {
+        text-align: center;
     }
 }
