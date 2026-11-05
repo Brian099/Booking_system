@@ -848,21 +848,7 @@ function render_post_card(array $post, array $user): void
         <div class="memo-card-footer">
             <!-- 像打表情一样的快捷打标签区域 -->
             <div class="memo-tags-reactions" data-post-id="<?= (int) $post['id'] ?>">
-                <div class="reaction-chips-container" style="display: inline-flex; flex-wrap: wrap; gap: 6px;">
-                    <?php if (!empty($post['tags'])): ?>
-                        <?php foreach ($post['tags'] as $tag): ?>
-                            <span class="reaction-chip active"
-                                  style="background: <?= h($tag['color']) ?>18; color: <?= h($tag['color']) ?>; border-color: <?= h($tag['color']) ?>55;"
-                                  onclick="togglePostTagAsync(<?= (int) $post['id'] ?>, <?= (int) $tag['id'] ?>)"
-                                  title="点击移除此标签">
-                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: <?= h($tag['color']) ?>;"></span>
-                                <?= h($tag['name']) ?>
-                            </span>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-
-                <!-- 类似表情的快捷选择菜单按钮 -->
+                <!-- 快捷打标签按钮固定在最左侧 -->
                 <div class="reaction-popover-container">
                     <button type="button" class="add-reaction-btn" onclick="toggleReactionMenu(this)" title="快捷打标签/分类">
                         <span>🏷️</span>
@@ -880,6 +866,20 @@ function render_post_card(array $post, array $user): void
                             </button>
                         <?php endforeach; ?>
                     </div>
+                </div>
+
+                <div class="reaction-chips-container" style="display: inline-flex; flex-wrap: wrap; gap: 6px;">
+                    <?php if (!empty($post['tags'])): ?>
+                        <?php foreach ($post['tags'] as $tag): ?>
+                            <span class="reaction-chip active"
+                                  style="background: <?= h($tag['color']) ?>18; color: <?= h($tag['color']) ?>; border-color: <?= h($tag['color']) ?>55;"
+                                  onclick="togglePostTagAsync(<?= (int) $post['id'] ?>, <?= (int) $tag['id'] ?>)"
+                                  title="点击移除此标签">
+                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: <?= h($tag['color']) ?>;"></span>
+                                <?= h($tag['name']) ?>
+                            </span>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
 
