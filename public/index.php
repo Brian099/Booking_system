@@ -125,13 +125,11 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                 </a>
                 <a class="nav-item <?= ($activeRoute === $filterRoute && $isPendingSelected) ? 'active' : '' ?>" href="/?route=<?= h($isAdminViewer ? 'posts' : 'my-posts') ?>&tag_id=pending" title="既没有标签、也没有注释的记录">
                     <span class="icon">🕒</span> 待处理记录
-                    <?php if ($pendingCount > 0): ?>
-                        <span class="tag-badge" style="margin-left: auto;"><?= $pendingCount ?></span>
-                    <?php endif; ?>
+                    <span class="tag-badge" id="pending-count-badge" style="margin-left: auto; <?= $pendingCount > 0 ? '' : 'display: none;' ?>"><?= $pendingCount ?></span>
                 </a>
                 <?php if ($isAdminViewer): ?>
                     <a class="nav-item <?= $activeRoute === 'pending-comments' ? 'active' : '' ?>" href="/?route=pending-comments">
-                        <span class="icon">✅</span> 所有标注
+                        <span class="icon">✅</span> 待办事项
                     </a>
                 <?php endif; ?>
                 <a class="nav-item <?= ($activeRoute === 'recycle-bin' && !$isPendingSelected) ? 'active' : '' ?>" href="/?route=recycle-bin">
@@ -145,16 +143,15 @@ function render_memos_sidebar(?array $user, array $queryParams): void
                     <span>标签分类</span>
                 </div>
                 <div class="tag-tree-list">
-                    <a href="/?route=<?= h($filterRoute) ?>" class="tag-tree-item <?= ($selectedTag === '' && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
-                        <span># 全部标签</span>
-                    </a>
                     <a href="/?route=<?= h($filterRoute) ?>&tag_id=untagged" class="tag-tree-item <?= ($isUntaggedSelected && in_array($activeRoute, ['posts', 'my-posts', 'recycle-bin'], true)) ? 'active' : '' ?>">
                         <span style="display: flex; align-items: center; gap: 6px;">
                             <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;"></span>
                             无标签
                         </span>
                         <?php if ($untaggedCount > 0): ?>
-                            <span class="tag-badge"><?= $untaggedCount ?></span>
+                            <span class="tag-badge" id="untagged-count-badge"><?= $untaggedCount ?></span>
+                        <?php else: ?>
+                            <span class="tag-badge" id="untagged-count-badge" style="display: none;">0</span>
                         <?php endif; ?>
                     </a>
                     <?php foreach ($tags as $tag): ?>
@@ -231,6 +228,39 @@ function render_footer(): void
     </main>
     </div>
     <script>
+        window.APP = window.APP || {};
+        window.APP.listSource = <?= json_encode(route_name(), JSON_UNESCAPED_SLASHES) ?>;
+
+        // 刷新侧边栏「待处理记录」「无标签」计数
+        async function refreshPendingCount() {
+            const source = (window.APP && window.APP.listSource) || 'posts';
+            try {
+                const response = await fetch('/?route=pending-count&source=' + encodeURIComponent(source), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                const data = await response.json();
+                if (typeof data.pending === 'number') {
+                    const badge = document.getElementById('pending-count-badge');
+                    if (badge) {
+                        badge.textContent = data.pending;
+                        badge.style.display = data.pending > 0 ? '' : 'none';
+                    }
+                }
+                if (typeof data.untagged === 'number') {
+                    const badge = document.getElementById('untagged-count-badge');
+                    if (badge) {
+                        badge.textContent = data.untagged;
+                        badge.style.display = data.untagged > 0 ? '' : 'none';
+                    }
+                }
+            } catch (err) {
+                console.error('刷新待处理数量失败', err);
+            }
+        }
+
         // Toast 消息提示管理与自动隐藏
         function dismissToast(el) {
             if (!el || el.classList.contains('toast-hiding')) return;
@@ -510,6 +540,9 @@ function render_footer(): void
                             }
                         });
                     }
+
+                    // 标签变化后，刷新侧边栏「待处理记录」「无标签」计数
+                    refreshPendingCount();
                 }
             } catch (err) {
                 console.error('标签切换失败', err);
@@ -572,6 +605,9 @@ function render_footer(): void
                             countLink.textContent = '💬 ' + data.comments.length;
                         }
                     }
+
+                    // 新增注释后，刷新侧边栏「待处理记录」「无标签」计数
+                    refreshPendingCount();
                 } else if (data.message) {
                     alert(data.message);
                 }
@@ -995,7 +1031,7 @@ if (!$user && $route !== 'login') {
     redirect('/?route=login');
 }
 
-// 分类权限：管理员可看「全部记录」「所有标注」；普通用户只能看自己的记录
+// 分类权限：管理员可看「全部记录」「待办事项」；普通用户只能看自己的记录
 if ($user && !is_admin()) {
     if ($route === 'posts') {
         $query = $_GET;
@@ -1004,7 +1040,7 @@ if ($user && !is_admin()) {
     }
 
     if ($route === 'pending-comments') {
-        flash('error', '「所有标注」仅管理员可查看');
+        flash('error', '「待办事项」仅管理员可查看');
         redirect('/?route=my-posts');
     }
 }
@@ -1395,6 +1431,22 @@ if ($route === 'login') {
 
 $user = require_login();
 
+// ==================== 待处理/无标签计数（AJAX 刷新） ====================
+if ($route === 'pending-count') {
+    $source = (string) ($_GET['source'] ?? '');
+    if (!in_array($source, ['posts', 'my-posts', 'recycle-bin'], true)) {
+        $source = is_admin() ? 'posts' : 'my-posts';
+    }
+    $scope = ($source === 'my-posts' || ($source === 'recycle-bin' && !is_admin())) ? 'mine' : 'all';
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'pending' => count_pending_posts($scope, (int) $user['id']),
+        'untagged' => count_untagged_posts($scope, (int) $user['id']),
+    ]);
+    exit;
+}
+
 // ==================== 加载更多（AJAX 追加列表） ====================
 if ($route === 'posts-more') {
     $source = (string) ($_GET['source'] ?? 'posts');
@@ -1704,18 +1756,18 @@ if ($route === 'post-view') {
     exit;
 }
 
-// ==================== 所有标注汇总（待办 / 已办） ====================
+// ==================== 待办事项汇总（待办 / 已办） ====================
 if ($route === 'pending-comments') {
     $showDone = ($_GET['status'] ?? '') === 'done';
     $keyword = trim((string) ($_GET['keyword'] ?? ''));
     $comments = list_comments_by_status($showDone, $keyword);
     $keywordQuery = $keyword !== '' ? '&keyword=' . urlencode($keyword) : '';
 
-    render_header('所有标注', $user);
+    render_header('待办事项', $user);
     ?>
     <div class="panel-card">
         <div class="todo-panel-header">
-            <h2 class="panel-title" style="margin: 0;">✅ 所有标注</h2>
+            <h2 class="panel-title" style="margin: 0;">✅ 待办事项</h2>
             <div class="todo-tabs">
                 <a class="todo-tab <?= !$showDone ? 'active' : '' ?>" href="/?route=pending-comments<?= h($keywordQuery) ?>">待办</a>
                 <a class="todo-tab <?= $showDone ? 'active' : '' ?>" href="/?route=pending-comments&status=done<?= h($keywordQuery) ?>">已办</a>
