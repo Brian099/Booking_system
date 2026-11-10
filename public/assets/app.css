@@ -1567,6 +1567,66 @@ button, input, select, textarea {
     text-decoration: underline;
 }
 
+/* 待办事项：厂家标签筛选条 */
+.todo-mfr-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.todo-mfr-chips-label {
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+.todo-mfr-chip {
+    padding: 3px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: #ffffff;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.todo-mfr-chip:hover {
+    background: #f1f5f9;
+    color: var(--text-main);
+}
+
+.todo-mfr-chip.active {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* 待办事项：每行厂家选择 */
+.todo-mfr {
+    flex-shrink: 0;
+    max-width: 28%;
+    padding: 3px 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.todo-mfr:hover {
+    border-color: var(--primary);
+}
+
+.todo-mfr.saving {
+    opacity: 0.55;
+}
+
 /* Secondary Pages (Users, Webhooks, Tags, etc.) */
 .panel-card {
     background: var(--bg-card);
@@ -1811,6 +1871,13 @@ button, input, select, textarea {
         justify-self: start;
         max-width: 100%;
         text-align: left;
+    }
+
+    .todo-mfr {
+        grid-column: 2;
+        grid-row: 3;
+        justify-self: start;
+        max-width: 100%;
     }
 
     .card-comment-text {

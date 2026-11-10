@@ -1131,6 +1131,30 @@ if ($route === 'tag-save' && is_post_request()) {
     redirect('/?route=settings&tab=tags');
 }
 
+if ($route === 'manufacturer-save' && is_post_request()) {
+    require_admin();
+    verify_csrf();
+    $manufacturerId = (int) ($_POST['id'] ?? 0);
+    $name = trim((string) ($_POST['name'] ?? ''));
+    $sortOrder = (int) ($_POST['sort_order'] ?? 0);
+    $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+    if ($name === '') {
+        flash('error', '厂家名称不能为空');
+        redirect('/?route=settings&tab=manufacturers');
+    }
+
+    if ($manufacturerId > 0) {
+        update_manufacturer($manufacturerId, $name, $sortOrder, $isActive);
+        flash('success', '厂家更新成功');
+    } else {
+        create_manufacturer($name, $sortOrder);
+        flash('success', '厂家创建成功');
+    }
+
+    redirect('/?route=settings&tab=manufacturers');
+}
+
 if ($route === 'webhook-save' && is_post_request()) {
     require_admin();
     verify_csrf();
@@ -1395,6 +1419,37 @@ if ($route === 'comment-toggle' && is_post_request()) {
     }
 
     redirect('/?route=' . $returnRoute . ($returnStatus === 'done' ? '&status=done' : ''));
+}
+
+if ($route === 'comment-manufacturer' && is_post_request()) {
+    $user = require_login();
+    verify_csrf();
+
+    $commentId = (int) ($_POST['comment_id'] ?? 0);
+    $manufacturerId = (int) ($_POST['manufacturer_id'] ?? 0);
+    $comment = find_comment_by_id($commentId);
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+    if (!$comment) {
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => '待办事项不存在']);
+            exit;
+        }
+        flash('error', '待办事项不存在');
+        redirect('/?route=pending-comments');
+    }
+
+    set_comment_manufacturer($commentId, $manufacturerId > 0 ? $manufacturerId : null);
+
+    if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'manufacturer_id' => ($manufacturerId > 0 ? $manufacturerId : null)]);
+        exit;
+    }
+
+    flash('success', '厂家已更新');
+    redirect('/?route=pending-comments');
 }
 
 if ($route === 'login') {
@@ -1761,6 +1816,7 @@ if ($route === 'pending-comments') {
     $showDone = ($_GET['status'] ?? '') === 'done';
     $keyword = trim((string) ($_GET['keyword'] ?? ''));
     $comments = list_comments_by_status($showDone, $keyword);
+    $manufacturers = list_manufacturers(true);
     $keywordQuery = $keyword !== '' ? '&keyword=' . urlencode($keyword) : '';
 
     render_header('待办事项', $user);
@@ -1783,6 +1839,15 @@ if ($route === 'pending-comments') {
             <button type="submit" class="btn-primary">搜索</button>
             <a class="todo-search-clear" id="todo-search-clear" href="/?route=pending-comments<?= $showDone ? '&status=done' : '' ?>" style="<?= $keyword !== '' ? '' : 'display: none;' ?>" data-server-keyword="<?= $keyword !== '' ? '1' : '0' ?>">清除</a>
         </form>
+
+        <?php if ($manufacturers): ?>
+            <div class="todo-mfr-chips" id="todo-mfr-chips">
+                <span class="todo-mfr-chips-label">厂家：</span>
+                <?php foreach ($manufacturers as $manufacturer): ?>
+                    <button type="button" class="todo-mfr-chip" data-name="<?= h($manufacturer['name']) ?>"><?= h($manufacturer['name']) ?></button>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
 
         <div class="comment-section-box" id="todo-list" style="border-top: none; padding-top: 0;">
             <?php if (!$comments): ?>
@@ -1807,6 +1872,12 @@ if ($route === 'pending-comments') {
                            title="关联订货单 #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>">
                             #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)
                         </a>
+                        <select class="todo-mfr" data-comment-id="<?= (int) $comment['id'] ?>" title="选择厂家">
+                            <option value="0">无厂家</option>
+                            <?php foreach ($manufacturers as $manufacturer): ?>
+                                <option value="<?= (int) $manufacturer['id'] ?>" <?= ((int) $comment['manufacturer_id'] === (int) $manufacturer['id']) ? 'selected' : '' ?>><?= h($manufacturer['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 <?php endforeach; ?>
                 <div class="empty-placeholder" id="todo-filter-empty" style="display: none;">没有匹配的标注</div>
@@ -1815,20 +1886,33 @@ if ($route === 'pending-comments') {
     </div>
     <script>
         (function () {
+            var csrf = '<?= h(csrf_token()) ?>';
             var input = document.getElementById('todo-search-input');
             var list = document.getElementById('todo-list');
             var clear = document.getElementById('todo-search-clear');
             var empty = document.getElementById('todo-filter-empty');
+            var chips = Array.prototype.slice.call(document.querySelectorAll('.todo-mfr-chip'));
             if (!input || !list) {
                 return;
             }
 
             var rows = Array.prototype.slice.call(list.querySelectorAll('.todo-row'));
-            var haystacks = rows.map(function (row) {
+
+            function manufacturerOf(row) {
+                var select = row.querySelector('.todo-mfr');
+                if (!select || select.selectedIndex < 0) {
+                    return '';
+                }
+                var option = select.options[select.selectedIndex];
+                return option ? option.textContent : '';
+            }
+
+            // 搜索文本 = 待办内容 + 厂家名称
+            function haystackOf(row) {
                 var textEl = row.querySelector('.todo-text');
-                var text = textEl ? (textEl.getAttribute('title') || textEl.textContent || '') : (row.textContent || '');
-                return text.toLowerCase();
-            });
+                var text = textEl ? (textEl.getAttribute('title') || textEl.textContent || '') : '';
+                return (text + ' ' + manufacturerOf(row)).toLowerCase();
+            }
 
             function applyFilter() {
                 var terms = input.value.trim().toLowerCase().split(/\s+/).filter(function (term) {
@@ -1836,9 +1920,10 @@ if ($route === 'pending-comments') {
                 });
                 var visible = 0;
 
-                rows.forEach(function (row, index) {
+                rows.forEach(function (row) {
+                    var haystack = haystackOf(row);
                     var matched = terms.every(function (term) {
-                        return haystacks[index].indexOf(term) !== -1;
+                        return haystack.indexOf(term) !== -1;
                     });
                     row.style.display = matched ? '' : 'none';
                     if (matched) {
@@ -1852,6 +1937,13 @@ if ($route === 'pending-comments') {
                 if (clear) {
                     clear.style.display = (terms.length > 0 || clear.dataset.serverKeyword === '1') ? '' : 'none';
                 }
+
+                // 厂家标签高亮：搜索框内容与该厂家一致时点亮
+                var current = input.value.trim().toLowerCase();
+                chips.forEach(function (chip) {
+                    var name = (chip.getAttribute('data-name') || '').toLowerCase();
+                    chip.classList.toggle('active', current !== '' && current === name);
+                });
             }
 
             input.addEventListener('input', applyFilter);
@@ -1868,6 +1960,57 @@ if ($route === 'pending-comments') {
                     input.focus();
                 });
             }
+
+            // 点击厂家标签：填入搜索框筛选（再次点击同一厂家则清空）
+            chips.forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    var name = chip.getAttribute('data-name') || '';
+                    if (input.value.trim() === name) {
+                        input.value = '';
+                    } else {
+                        input.value = name;
+                    }
+                    applyFilter();
+                    input.focus();
+                });
+            });
+
+            // 每行选择厂家后立即保存
+            rows.forEach(function (row) {
+                var select = row.querySelector('.todo-mfr');
+                if (!select) {
+                    return;
+                }
+                select.addEventListener('change', function () {
+                    var fd = new FormData();
+                    fd.append('_token', csrf);
+                    fd.append('comment_id', select.getAttribute('data-comment-id'));
+                    fd.append('manufacturer_id', select.value);
+
+                    select.classList.add('saving');
+                    fetch('/?route=comment-manufacturer', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: fd
+                    })
+                    .then(function (resp) { return resp.json(); })
+                    .then(function (data) {
+                        if (!data.success) {
+                            alert(data.message || '厂家保存失败');
+                        }
+                        applyFilter();
+                    })
+                    .catch(function () {
+                        alert('厂家保存失败');
+                    })
+                    .then(function () {
+                        select.classList.remove('saving');
+                    });
+                });
+            });
 
             applyFilter();
         })();
@@ -1891,7 +2034,7 @@ if ($route === 'webhooks') {
 // ==================== 系统与个人设置中心 (Memos Settings) ====================
 if ($route === 'settings') {
     $currentTab = (string) ($_GET['tab'] ?? (is_admin() ? 'tags' : 'profile'));
-    if (!is_admin() && in_array($currentTab, ['tags', 'users', 'webhooks'], true)) {
+    if (!is_admin() && in_array($currentTab, ['tags', 'users', 'webhooks', 'manufacturers'], true)) {
         $currentTab = 'profile';
     }
 
@@ -1908,6 +2051,9 @@ if ($route === 'settings') {
             <?php if (is_admin()): ?>
                 <a href="/?route=settings&tab=tags" class="settings-tab-link <?= $currentTab === 'tags' ? 'active' : '' ?>">
                     🏷️ 标签管理
+                </a>
+                <a href="/?route=settings&tab=manufacturers" class="settings-tab-link <?= $currentTab === 'manufacturers' ? 'active' : '' ?>">
+                    🏭 厂家管理
                 </a>
                 <a href="/?route=settings&tab=users" class="settings-tab-link <?= $currentTab === 'users' ? 'active' : '' ?>">
                     👥 用户管理
@@ -1961,6 +2107,48 @@ if ($route === 'settings') {
                             <button class="btn-primary" type="submit" style="font-size: 12px; padding: 6px 12px;">保存</button>
                         </form>
                     <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+    <?php elseif ($currentTab === 'manufacturers' && is_admin()): ?>
+        <?php $manufacturers = list_manufacturers(false); ?>
+        <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 20px;">
+            <div class="panel-card">
+                <h3 class="panel-title">➕ 新增厂家</h3>
+                <form method="post" action="/?route=manufacturer-save">
+                    <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                    <div class="form-group">
+                        <label>厂家名称</label>
+                        <input type="text" name="name" class="form-control" placeholder="如：深圳华强厂、东莞模具厂" required>
+                    </div>
+                    <div class="form-group">
+                        <label>显示排序 (越小越靠前)</label>
+                        <input type="number" name="sort_order" class="form-control" value="0">
+                    </div>
+                    <button class="btn-primary" type="submit" style="margin-top: 10px; width: 100%;">创建厂家</button>
+                </form>
+            </div>
+
+            <div class="panel-card">
+                <h3 class="panel-title">🏭 现有厂家</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <?php if (!$manufacturers): ?>
+                        <div style="text-align: center; color: var(--text-subtle); padding: 12px; font-size: 13px;">暂无厂家，请先添加</div>
+                    <?php else: ?>
+                        <?php foreach ($manufacturers as $manufacturer): ?>
+                            <form method="post" action="/?route=manufacturer-save" style="display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                                <input type="hidden" name="_token" value="<?= h(csrf_token()) ?>">
+                                <input type="hidden" name="id" value="<?= (int) $manufacturer['id'] ?>">
+                                <input type="text" name="name" class="form-control" value="<?= h($manufacturer['name']) ?>" required style="flex: 1;">
+                                <input type="number" name="sort_order" class="form-control" value="<?= (int) $manufacturer['sort_order'] ?>" style="width: 70px;" title="排序">
+                                <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer;">
+                                    <input type="checkbox" name="is_active" value="1" <?= (int) $manufacturer['is_active'] === 1 ? 'checked' : '' ?>> 启用
+                                </label>
+                                <button class="btn-primary" type="submit" style="font-size: 12px; padding: 6px 12px;">保存</button>
+                            </form>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

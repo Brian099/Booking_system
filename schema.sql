@@ -3,6 +3,7 @@ PRAGMA foreign_keys = OFF;
 DROP TABLE IF EXISTS webhook_logs;
 DROP TABLE IF EXISTS webhook_subscriptions;
 DROP TABLE IF EXISTS post_comments;
+DROP TABLE IF EXISTS manufacturers;
 DROP TABLE IF EXISTS post_tags;
 DROP TABLE IF EXISTS tags;
 DROP TABLE IF EXISTS post_images;
@@ -66,6 +67,15 @@ CREATE TABLE post_tags (
     FOREIGN KEY (tagged_by_user_id) REFERENCES users(id)
 );
 
+CREATE TABLE manufacturers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE post_comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     post_id INTEGER NOT NULL,
@@ -73,10 +83,12 @@ CREATE TABLE post_comments (
     content TEXT NOT NULL,
     is_done INTEGER NOT NULL DEFAULT 0,
     done_at TEXT NULL,
+    manufacturer_id INTEGER NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id) ON DELETE SET NULL
 );
 
 CREATE TABLE webhook_subscriptions (

@@ -134,6 +134,60 @@ function update_tag(int $id, string $name, string $color, int $sortOrder, int $i
     ]);
 }
 
+function list_manufacturers(bool $onlyActive = true): array
+{
+    $sql = 'SELECT * FROM manufacturers';
+    if ($onlyActive) {
+        $sql .= ' WHERE is_active = 1';
+    }
+    $sql .= ' ORDER BY sort_order ASC, id ASC';
+
+    return db()->query($sql)->fetchAll();
+}
+
+function create_manufacturer(string $name, int $sortOrder = 0): int
+{
+    $time = now();
+    $stmt = db()->prepare(
+        'INSERT INTO manufacturers (name, sort_order, is_active, created_at, updated_at)
+         VALUES (:name, :sort_order, 1, :created_at, :updated_at)'
+    );
+    $stmt->execute([
+        'name' => trim($name),
+        'sort_order' => $sortOrder,
+        'created_at' => $time,
+        'updated_at' => $time,
+    ]);
+
+    return (int) db()->lastInsertId();
+}
+
+function update_manufacturer(int $id, string $name, int $sortOrder, int $isActive): void
+{
+    $stmt = db()->prepare(
+        'UPDATE manufacturers
+         SET name = :name, sort_order = :sort_order, is_active = :is_active, updated_at = :updated_at
+         WHERE id = :id'
+    );
+    $stmt->execute([
+        'id' => $id,
+        'name' => trim($name),
+        'sort_order' => $sortOrder,
+        'is_active' => $isActive ? 1 : 0,
+        'updated_at' => now(),
+    ]);
+}
+
+function set_comment_manufacturer(int $commentId, ?int $manufacturerId): void
+{
+    $stmt = db()->prepare('UPDATE post_comments SET manufacturer_id = :manufacturer_id, updated_at = :updated_at WHERE id = :id');
+    $stmt->execute([
+        'id' => $commentId,
+        'manufacturer_id' => $manufacturerId,
+        'updated_at' => now(),
+    ]);
+}
+
 function create_post(int $authorId, string $content, string $expectedShipDate, array $images): int
 {
     $time = now();
@@ -615,16 +669,18 @@ function list_comments_by_status(bool $isDone, string $keyword = ''): array
     $params = ['is_done' => $isDone ? 1 : 0];
 
     if (trim($keyword) !== '') {
-        $conditions[] = 'c.content LIKE :keyword';
+        $conditions[] = '(c.content LIKE :keyword OR m.name LIKE :keyword)';
         $params['keyword'] = '%' . trim($keyword) . '%';
     }
 
     $stmt = db()->prepare('
-        SELECT c.*, p.content AS post_content, p.id AS post_id, u.display_name AS user_name, au.display_name AS post_author_name
+        SELECT c.*, p.content AS post_content, p.id AS post_id, u.display_name AS user_name, au.display_name AS post_author_name,
+               m.name AS manufacturer_name
         FROM post_comments c
         INNER JOIN posts p ON p.id = c.post_id
         INNER JOIN users u ON u.id = c.user_id
         INNER JOIN users au ON au.id = p.author_id
+        LEFT JOIN manufacturers m ON m.id = c.manufacturer_id
         WHERE ' . implode(' AND ', $conditions) . '
         ORDER BY c.created_at DESC, c.id DESC
     ');

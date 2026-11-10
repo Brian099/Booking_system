@@ -26,6 +26,21 @@ function db(): PDO
         $pdo->exec('PRAGMA foreign_keys = ON');
         $pdo->exec('PRAGMA journal_mode = WAL');
         $pdo->exec('PRAGMA busy_timeout = 5000');
+
+        // 幂等迁移：确保 manufacturers 表与 post_comments.manufacturer_id 列存在（兼容旧库）
+        $pdo->exec('CREATE TABLE IF NOT EXISTS manufacturers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )');
+
+        $commentColumns = $pdo->query('PRAGMA table_info(post_comments)')->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (!in_array('manufacturer_id', $commentColumns, true)) {
+            $pdo->exec('ALTER TABLE post_comments ADD COLUMN manufacturer_id INTEGER NULL');
+        }
     }
 
     return $pdo;
