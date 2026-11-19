@@ -28,6 +28,7 @@ function db(): PDO
         $pdo->exec('PRAGMA busy_timeout = 5000');
 
         // 幂等迁移：确保 manufacturers 表与 post_comments.manufacturer_id 列存在（兼容旧库）
+        // 注意：全新库（尚未建表）时跳过，交给 scripts/init_db.php 按 schema.sql 建表
         $pdo->exec('CREATE TABLE IF NOT EXISTS manufacturers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
@@ -37,9 +38,12 @@ function db(): PDO
             updated_at TEXT NOT NULL
         )');
 
-        $commentColumns = $pdo->query('PRAGMA table_info(post_comments)')->fetchAll(PDO::FETCH_COLUMN, 1);
-        if (!in_array('manufacturer_id', $commentColumns, true)) {
-            $pdo->exec('ALTER TABLE post_comments ADD COLUMN manufacturer_id INTEGER NULL');
+        $hasCommentsTable = (bool) $pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'post_comments'")->fetchColumn();
+        if ($hasCommentsTable) {
+            $commentColumns = $pdo->query('PRAGMA table_info(post_comments)')->fetchAll(PDO::FETCH_COLUMN, 1);
+            if (!in_array('manufacturer_id', $commentColumns, true)) {
+                $pdo->exec('ALTER TABLE post_comments ADD COLUMN manufacturer_id INTEGER NULL');
+            }
         }
     }
 

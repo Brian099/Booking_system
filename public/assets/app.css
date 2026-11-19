@@ -1501,6 +1501,12 @@ button, input, select, textarea {
     background: #ffffff;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.todo-row.removing {
+    opacity: 0;
+    transform: translateX(8px);
 }
 
 .todo-row.is-done .todo-text {
@@ -1567,6 +1573,11 @@ button, input, select, textarea {
     text-decoration: underline;
 }
 
+/* 待办事项：关联订货单 + 厂家下拉（PC 端作为独立 flex 项平铺，手机端同一行） */
+.todo-sub {
+    display: contents;
+}
+
 /* 待办事项：厂家标签筛选条 */
 .todo-mfr-chips {
     display: flex;
@@ -1603,6 +1614,18 @@ button, input, select, textarea {
     border-color: var(--primary);
     color: var(--primary);
     font-weight: 600;
+}
+
+/* 「无厂家」筛选标签：虚线边框，与真实厂家区分 */
+.todo-mfr-chip-none {
+    border-style: dashed;
+    color: var(--text-subtle);
+}
+
+.todo-mfr-chip-none.active {
+    background: #f1f5f9;
+    border-color: var(--text-muted);
+    color: var(--text-main);
 }
 
 /* 待办事项：每行厂家选择 */
@@ -1843,8 +1866,8 @@ button, input, select, textarea {
 
 @media (max-width: 640px) {
     .todo-row {
-        /* 手机端两行网格：勾选框 + 标注内容（日期行内）/ 关联订货单
-           标注内容换行后回落到日期左边缘，关联订货单也与之对齐 */
+        /* 手机端两行网格：勾选框 + 标注内容（日期行内）/ 关联订货单 + 厂家下拉（同一行）
+           标注内容换行后回落到日期左边缘，第二行也与日期左边缘对齐 */
         display: grid;
         grid-template-columns: auto minmax(0, 1fr);
         align-items: flex-start;
@@ -1865,19 +1888,28 @@ button, input, select, textarea {
         word-break: break-word;
     }
 
-    .todo-order {
+    /* 关联订货单与厂家下拉合并到同一行 */
+    .todo-sub {
         grid-column: 2;
         grid-row: 2;
-        justify-self: start;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .todo-order {
+        /* 只占自身文字宽度，让厂家下拉紧挨着它，而不是被推到最右 */
+        flex: 0 1 auto;
+        min-width: 0;
         max-width: 100%;
         text-align: left;
     }
 
     .todo-mfr {
-        grid-column: 2;
-        grid-row: 3;
-        justify-self: start;
-        max-width: 100%;
+        flex: 0 0 auto;
+        max-width: 55%;
     }
 
     .card-comment-text {

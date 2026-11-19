@@ -1817,6 +1817,8 @@ if ($route === 'pending-comments') {
     $keyword = trim((string) ($_GET['keyword'] ?? ''));
     $comments = list_comments_by_status($showDone, $keyword);
     $manufacturers = list_manufacturers(true);
+    $manufacturerChips = list_used_manufacturers($showDone);
+    $unassignedCount = count_comments_without_manufacturer($showDone);
     $keywordQuery = $keyword !== '' ? '&keyword=' . urlencode($keyword) : '';
 
     render_header('待办事项', $user);
@@ -1840,14 +1842,15 @@ if ($route === 'pending-comments') {
             <a class="todo-search-clear" id="todo-search-clear" href="/?route=pending-comments<?= $showDone ? '&status=done' : '' ?>" style="<?= $keyword !== '' ? '' : 'display: none;' ?>" data-server-keyword="<?= $keyword !== '' ? '1' : '0' ?>">清除</a>
         </form>
 
-        <?php if ($manufacturers): ?>
-            <div class="todo-mfr-chips" id="todo-mfr-chips">
-                <span class="todo-mfr-chips-label">厂家：</span>
-                <?php foreach ($manufacturers as $manufacturer): ?>
-                    <button type="button" class="todo-mfr-chip" data-name="<?= h($manufacturer['name']) ?>"><?= h($manufacturer['name']) ?></button>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
+        <div class="todo-mfr-chips" id="todo-mfr-chips" style="<?= ($manufacturerChips || $unassignedCount > 0) ? '' : 'display: none;' ?>">
+            <span class="todo-mfr-chips-label">厂家：</span>
+            <?php if ($unassignedCount > 0): ?>
+                <button type="button" class="todo-mfr-chip todo-mfr-chip-none" data-name="无厂家" title="筛选未标记厂家的事项（<?= $unassignedCount ?> 条）">无厂家</button>
+            <?php endif; ?>
+            <?php foreach ($manufacturerChips as $manufacturer): ?>
+                <button type="button" class="todo-mfr-chip" data-name="<?= h($manufacturer['name']) ?>"><?= h($manufacturer['name']) ?></button>
+            <?php endforeach; ?>
+        </div>
 
         <div class="comment-section-box" id="todo-list" style="border-top: none; padding-top: 0;">
             <?php if (!$comments): ?>
@@ -1862,22 +1865,42 @@ if ($route === 'pending-comments') {
                             <?php if ($showDone): ?>
                                 <input type="hidden" name="return_status" value="done">
                             <?php endif; ?>
-                            <input type="checkbox" onchange="this.form.submit()" <?= $showDone ? 'checked' : '' ?> title="<?= $showDone ? '标记为待办' : '标记完成' ?>">
+                            <input type="checkbox" onchange="toggleTodoAsync(this)" <?= $showDone ? 'checked' : '' ?> title="<?= $showDone ? '标记为待办' : '标记完成' ?>">
                         </form>
                         <div class="todo-main">
                             <span class="todo-date"><?= h(relative_day_label($comment['created_at'])) ?></span><span class="todo-text" title="<?= h($comment['content']) ?>"><?= h($comment['content']) ?></span>
                         </div>
-                        <a class="todo-order"
-                           href="/?route=post-view&id=<?= (int) $comment['post_id'] ?>"
-                           title="关联订货单 #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>">
-                            #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)
-                        </a>
-                        <select class="todo-mfr" data-comment-id="<?= (int) $comment['id'] ?>" title="选择厂家">
-                            <option value="0">无厂家</option>
-                            <?php foreach ($manufacturers as $manufacturer): ?>
-                                <option value="<?= (int) $manufacturer['id'] ?>" <?= ((int) $comment['manufacturer_id'] === (int) $manufacturer['id']) ? 'selected' : '' ?>><?= h($manufacturer['name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="todo-sub">
+                            <a class="todo-order"
+                               href="/?route=post-view&id=<?= (int) $comment['post_id'] ?>"
+                               title="关联订货单 #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)：<?= h($comment['post_content']) ?>">
+                                #<?= (int) $comment['post_id'] ?> (<?= h($comment['post_author_name']) ?>)
+                            </a>
+                            <?php
+                            // 行内下拉：启用中的厂家 + 该待办已选中的厂家（即使已被停用，也要能正确显示）
+                            $rowMfrId = (int) ($comment['manufacturer_id'] ?? 0);
+                            $rowMfrOptions = $manufacturers;
+                            $rowMfrFound = false;
+                            foreach ($manufacturers as $manufacturer) {
+                                if ((int) $manufacturer['id'] === $rowMfrId) {
+                                    $rowMfrFound = true;
+                                    break;
+                                }
+                            }
+                            if ($rowMfrId > 0 && !$rowMfrFound) {
+                                $rowMfrOptions[] = [
+                                    'id' => $rowMfrId,
+                                    'name' => (string) ($comment['manufacturer_name'] ?? '') ?: ('#' . $rowMfrId),
+                                ];
+                            }
+                            ?>
+                            <select class="todo-mfr" data-comment-id="<?= (int) $comment['id'] ?>" title="选择厂家">
+                                <option value="0">无厂家</option>
+                                <?php foreach ($rowMfrOptions as $manufacturer): ?>
+                                    <option value="<?= (int) $manufacturer['id'] ?>" <?= ($rowMfrId === (int) $manufacturer['id']) ? 'selected' : '' ?>><?= h($manufacturer['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     </div>
                 <?php endforeach; ?>
                 <div class="empty-placeholder" id="todo-filter-empty" style="display: none;">没有匹配的标注</div>
@@ -1891,12 +1914,16 @@ if ($route === 'pending-comments') {
             var list = document.getElementById('todo-list');
             var clear = document.getElementById('todo-search-clear');
             var empty = document.getElementById('todo-filter-empty');
-            var chips = Array.prototype.slice.call(document.querySelectorAll('.todo-mfr-chip'));
+            var chipsBox = document.getElementById('todo-mfr-chips');
             if (!input || !list) {
                 return;
             }
 
             var rows = Array.prototype.slice.call(list.querySelectorAll('.todo-row'));
+
+            function chips() {
+                return chipsBox ? Array.prototype.slice.call(chipsBox.querySelectorAll('.todo-mfr-chip')) : [];
+            }
 
             function manufacturerOf(row) {
                 var select = row.querySelector('.todo-mfr');
@@ -1940,10 +1967,63 @@ if ($route === 'pending-comments') {
 
                 // 厂家标签高亮：搜索框内容与该厂家一致时点亮
                 var current = input.value.trim().toLowerCase();
-                chips.forEach(function (chip) {
+                chips().forEach(function (chip) {
                     var name = (chip.getAttribute('data-name') || '').toLowerCase();
                     chip.classList.toggle('active', current !== '' && current === name);
                 });
+            }
+
+            // 只保留「当前列表里实际用到」的厂家标签
+            function refreshChips() {
+                if (!chipsBox) {
+                    return;
+                }
+
+                var used = [];
+                rows.forEach(function (row) {
+                    var select = row.querySelector('.todo-mfr');
+                    if (!select || select.selectedIndex < 0) {
+                        return;
+                    }
+                    // 未标记厂家的行，选项文字就是「无厂家」
+                    var name = select.options[select.selectedIndex].textContent;
+                    if (!used.some(function (item) { return item.name === name; })) {
+                        used.push({ name: name });
+                    }
+                });
+
+                var kept = {};
+                chips().forEach(function (chip) {
+                    var name = chip.getAttribute('data-name') || '';
+                    var stillUsed = used.some(function (item) { return item.name === name; });
+                    if (!stillUsed) {
+                        chip.remove();
+                    } else {
+                        kept[name] = true;
+                    }
+                });
+
+                used.forEach(function (item) {
+                    if (kept[item.name]) {
+                        return;
+                    }
+                    var chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'todo-mfr-chip';
+                    chip.setAttribute('data-name', item.name);
+                    chip.textContent = item.name;
+
+                    if (item.name === '无厂家') {
+                        chip.classList.add('todo-mfr-chip-none');
+                        chip.title = '筛选未标记厂家的事项';
+                        // 「无厂家」固定排在最前
+                        chipsBox.insertBefore(chip, chipsBox.querySelector('.todo-mfr-chip'));
+                    } else {
+                        chipsBox.appendChild(chip);
+                    }
+                });
+
+                chipsBox.style.display = chips().length > 0 ? '' : 'none';
             }
 
             input.addEventListener('input', applyFilter);
@@ -1962,8 +2042,12 @@ if ($route === 'pending-comments') {
             }
 
             // 点击厂家标签：填入搜索框筛选（再次点击同一厂家则清空）
-            chips.forEach(function (chip) {
-                chip.addEventListener('click', function () {
+            if (chipsBox) {
+                chipsBox.addEventListener('click', function (event) {
+                    var chip = event.target.closest('.todo-mfr-chip');
+                    if (!chip) {
+                        return;
+                    }
                     var name = chip.getAttribute('data-name') || '';
                     if (input.value.trim() === name) {
                         input.value = '';
@@ -1973,7 +2057,7 @@ if ($route === 'pending-comments') {
                     applyFilter();
                     input.focus();
                 });
-            });
+            }
 
             // 每行选择厂家后立即保存
             rows.forEach(function (row) {
@@ -2001,6 +2085,7 @@ if ($route === 'pending-comments') {
                         if (!data.success) {
                             alert(data.message || '厂家保存失败');
                         }
+                        refreshChips();
                         applyFilter();
                     })
                     .catch(function () {
@@ -2011,6 +2096,65 @@ if ($route === 'pending-comments') {
                     });
                 });
             });
+
+            // 勾选完成 / 取消完成：无刷新处理，只移除这一条，保留当前筛选
+            window.toggleTodoAsync = function (checkbox) {
+                var row = checkbox.closest ? checkbox.closest('.todo-row') : null;
+                if (!row || row.classList.contains('removing')) {
+                    return;
+                }
+
+                var form = checkbox.form;
+                var idInput = form ? form.querySelector('input[name="comment_id"]') : null;
+                if (!idInput) {
+                    return;
+                }
+
+                var fd = new FormData();
+                fd.append('_token', csrf);
+                fd.append('comment_id', idInput.value);
+
+                checkbox.disabled = true;
+                fetch('/?route=comment-toggle', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: fd
+                })
+                .then(function (resp) { return resp.json(); })
+                .then(function (data) {
+                    if (!data.success) {
+                        checkbox.checked = !checkbox.checked;
+                        checkbox.disabled = false;
+                        alert(data.message || '操作失败');
+                        return;
+                    }
+
+                    // 该条已不再属于当前列表（待办→已办 / 已办→待办），本地移除即可
+                    row.classList.add('removing');
+                    setTimeout(function () {
+                        if (row.parentNode) {
+                            row.parentNode.removeChild(row);
+                        }
+                        var index = rows.indexOf(row);
+                        if (index !== -1) {
+                            rows.splice(index, 1);
+                        }
+                        refreshChips();
+                        applyFilter();
+                        if (typeof window.refreshPendingCount === 'function') {
+                            window.refreshPendingCount();
+                        }
+                    }, 160);
+                })
+                .catch(function () {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.disabled = false;
+                    alert('操作失败，请重试');
+                });
+            };
 
             applyFilter();
         })();

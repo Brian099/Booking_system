@@ -145,6 +145,43 @@ function list_manufacturers(bool $onlyActive = true): array
     return db()->query($sql)->fetchAll();
 }
 
+/**
+ * 只列出「当前状态（待办 / 已办）的待办事项里实际使用过」的厂家，用于筛选标签。
+ */
+function list_used_manufacturers(bool $isDone): array
+{
+    $stmt = db()->prepare('
+        SELECT DISTINCT m.id, m.name, m.sort_order
+        FROM post_comments c
+        INNER JOIN posts p ON p.id = c.post_id
+        INNER JOIN manufacturers m ON m.id = c.manufacturer_id
+        WHERE c.is_done = :is_done
+        AND p.deleted_at IS NULL
+        ORDER BY m.sort_order ASC, m.id ASC
+    ');
+    $stmt->execute(['is_done' => $isDone ? 1 : 0]);
+
+    return $stmt->fetchAll();
+}
+
+/**
+ * 统计当前状态（待办 / 已办）里「还没标记厂家」的事项数量，用于「无厂家」筛选标签。
+ */
+function count_comments_without_manufacturer(bool $isDone): int
+{
+    $stmt = db()->prepare('
+        SELECT COUNT(*) AS count
+        FROM post_comments c
+        INNER JOIN posts p ON p.id = c.post_id
+        WHERE c.is_done = :is_done
+        AND p.deleted_at IS NULL
+        AND c.manufacturer_id IS NULL
+    ');
+    $stmt->execute(['is_done' => $isDone ? 1 : 0]);
+
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
 function create_manufacturer(string $name, int $sortOrder = 0): int
 {
     $time = now();
